@@ -28,8 +28,7 @@ fi
 
 wp option update siteurl "$WP_URL"
 wp option update home "$WP_URL"
-wp language core install zh_CN --activate || true
-wp option update timezone_string "Asia/Shanghai"
+wp option update timezone_string "UTC"
 wp rewrite structure '/%postname%/' --hard
 wp theme activate poc-theme
 
