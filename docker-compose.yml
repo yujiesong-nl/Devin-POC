@@ -23,9 +23,20 @@ services:
       WORDPRESS_DB_PASSWORD: wordpress
       WORDPRESS_DB_NAME: wordpress
       WORDPRESS_DEBUG: "1"
+      # Serve the site on whatever host it is reached through (localhost, a tunnel or a preview proxy).
+      WORDPRESS_CONFIG_EXTRA: |
+        if ( ! empty( $$_SERVER['HTTP_X_FORWARDED_PROTO'] ) && 'https' === $$_SERVER['HTTP_X_FORWARDED_PROTO'] ) { $$_SERVER['HTTPS'] = 'on'; }
+        if ( ! empty( $$_SERVER['HTTP_HOST'] ) ) {
+          $$c4u_origin = ( ! empty( $$_SERVER['HTTPS'] ) && 'off' !== $$_SERVER['HTTPS'] ? 'https://' : 'http://' ) . $$_SERVER['HTTP_HOST'];
+          define( 'WP_HOME', $$c4u_origin );
+          define( 'WP_SITEURL', $$c4u_origin );
+        }
+        define( 'WP_DEBUG_DISPLAY', false );
+        define( 'WP_DEBUG_LOG', true );
     volumes:
       - wp_data:/var/www/html
-      - ./theme/poc-theme:/var/www/html/wp-content/themes/poc-theme
+      - ./theme/coffee4u:/var/www/html/wp-content/themes/coffee4u
+      - ./plugin/coffee4u-core:/var/www/html/wp-content/plugins/coffee4u-core
 
   wpcli:
     image: wordpress:cli-php8.3
@@ -40,8 +51,8 @@ services:
       WORDPRESS_DB_NAME: wordpress
     volumes:
       - wp_data:/var/www/html
-      - ./theme/poc-theme:/var/www/html/wp-content/themes/poc-theme
-      - ./scripts:/scripts
+      - ./theme/coffee4u:/var/www/html/wp-content/themes/coffee4u
+      - ./plugin/coffee4u-core:/var/www/html/wp-content/plugins/coffee4u-core
     profiles: ["cli"]
 
 volumes:

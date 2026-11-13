@@ -19,7 +19,7 @@ done
 if ! wp core is-installed >/dev/null 2>&1; then
   wp core install \
     --url="$WP_URL" \
-    --title="WP Prototype POC" \
+    --title="Coffee4U" \
     --admin_user=admin \
     --admin_password=admin \
     --admin_email=admin@example.com \
@@ -30,10 +30,14 @@ wp option update siteurl "$WP_URL"
 wp option update home "$WP_URL"
 wp option update timezone_string "UTC"
 wp rewrite structure '/%postname%/' --hard
-wp theme activate poc-theme
+wp option update blogname "Coffee4U"
+wp option update blogdescription "Order online for pick-up"
+wp theme activate coffee4u
 
-if [ -f scripts/seed.sh ]; then
-  docker compose run --rm -T wpcli bash /scripts/seed.sh
-fi
+# No third-party plugins: remove the bundled samples and activate only the project's own plugin.
+wp plugin delete akismet hello >/dev/null 2>&1 || true
+wp plugin activate coffee4u-core
+wp coffee4u seed
+wp rewrite flush --hard
 
 echo "Done: ${WP_URL}  (admin / admin)"
