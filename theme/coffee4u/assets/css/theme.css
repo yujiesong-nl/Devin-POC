@@ -25,10 +25,10 @@ body {
 }
 body::before {
 	content: "";
-	position: fixed;
+	position: absolute;
 	inset: 0;
 	z-index: -1;
-	background: url(../images/coffee-beans-bg.jpg) center / cover no-repeat;
+	background: url(../images/coffee-beans-bg.jpg) center top / max(100%, 1440px) auto repeat-y;
 	opacity: 0.32;
 	filter: saturate(0.7);
 }
@@ -112,7 +112,7 @@ body::before {
 .c4u-button--dark { background: var(--c4u-espresso); border-radius: 0; font-size: 16px; min-height: 36px; }
 .c4u-button--dark:hover, .c4u-button--dark:focus-visible { background: var(--c4u-roast); }
 .c4u-link { background: none; border: 0; padding: 0; font: inherit; font-weight: 700; color: var(--c4u-espresso); text-decoration: underline; cursor: pointer; }
-.c4u-back { display: inline-block; margin-top: 8px; color: var(--c4u-espresso); font-size: 16px; }
+.c4u-back { display: inline-block; align-self: flex-start; margin-top: 8px; color: var(--c4u-espresso); font-size: 16px; }
 .c4u-center { text-align: center; }
 .c4u-panel { background: var(--c4u-cream-strong); border-radius: var(--c4u-radius); padding: 24px; }
 .c4u-notice { text-align: center; font-size: 20px; }
@@ -354,6 +354,7 @@ a.c4u-order-online:hover, a.c4u-order-online:focus-visible { color: #fff; box-sh
 
 /* Confirmation ------------------------------------------------------- */
 .c4u-confirmation { text-align: center; font-weight: 700; }
+.c4u-confirmation .c4u-back { display: block; text-align: left; font-weight: 400; }
 .c4u-confirmation p { margin: 18px 0; font-size: 20px; }
 .c4u-confirmation__lead { margin-top: 32px !important; }
 .c4u-confirmation__number { color: var(--c4u-honey); font-size: 32px !important; }
