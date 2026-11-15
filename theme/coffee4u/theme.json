@@ -1,0 +1,54 @@
+{
+	"$schema": "https://schemas.wp.org/trunk/theme.json",
+	"version": 3,
+	"settings": {
+		"appearanceTools": true,
+		"layout": { "contentSize": "760px", "wideSize": "1024px" },
+		"color": {
+			"palette": [
+				{ "slug": "espresso", "name": "Espresso", "color": "#3e1f02" },
+				{ "slug": "roast", "name": "Roast", "color": "#693504" },
+				{ "slug": "caramel", "name": "Caramel", "color": "#e3992b" },
+				{ "slug": "honey", "name": "Honey", "color": "#9b6514" },
+				{ "slug": "cream", "name": "Cream", "color": "#f6eadb" },
+				{ "slug": "ink", "name": "Ink", "color": "#1d1208" },
+				{ "slug": "white", "name": "White", "color": "#ffffff" }
+			]
+		},
+		"typography": {
+			"fontFamilies": [
+				{
+					"slug": "roboto",
+					"name": "Roboto",
+					"fontFamily": "Roboto, -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"Helvetica Neue\", Arial, sans-serif",
+					"fontFace": [
+						{ "fontFamily": "Roboto", "fontStyle": "normal", "fontWeight": "100 900", "fontDisplay": "swap", "src": [ "file:./assets/fonts/roboto-latin.woff2" ] },
+						{ "fontFamily": "Roboto", "fontStyle": "italic", "fontWeight": "100 900", "fontDisplay": "swap", "src": [ "file:./assets/fonts/roboto-italic-latin.woff2" ] }
+					]
+				}
+			],
+			"fontSizes": [
+				{ "slug": "small", "name": "Small", "size": "14px" },
+				{ "slug": "medium", "name": "Medium", "size": "18px" },
+				{ "slug": "large", "name": "Large", "size": "24px" },
+				{ "slug": "x-large", "name": "Extra Large", "size": "clamp(28px, 4vw, 36px)" }
+			]
+		}
+	},
+	"styles": {
+		"color": { "background": "#efe9e2", "text": "var(--wp--preset--color--ink)" },
+		"typography": { "fontFamily": "var(--wp--preset--font-family--roboto)", "fontSize": "var(--wp--preset--font-size--medium)", "lineHeight": "1.45" },
+		"spacing": { "blockGap": "1rem" },
+		"elements": {
+			"link": { "color": { "text": "var(--wp--preset--color--espresso)" } },
+			"heading": { "typography": { "fontWeight": "700" }, "color": { "text": "var(--wp--preset--color--espresso)" } }
+		}
+	},
+	"customTemplates": [
+		{ "name": "flow", "title": "Ordering Flow", "postTypes": [ "page" ] }
+	],
+	"templateParts": [
+		{ "name": "header", "title": "Header", "area": "header" },
+		{ "name": "footer", "title": "Location Footer Bar", "area": "footer" }
+	]
+}
