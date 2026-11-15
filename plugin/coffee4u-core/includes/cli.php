@@ -93,6 +93,8 @@ WP_CLI::add_command(
 			'payment'         => array( 'Secure Payment', 'payment' ),
 			'order-confirmed' => array( 'Order Confirmed', 'order-confirmation' ),
 			'my-orders'       => array( 'My Orders', 'my-orders' ),
+			'group-order'     => array( 'Group Order', 'group-order' ),
+			'group-join'      => array( 'Join Group Order', 'group-join' ),
 		);
 		foreach ( $pages as $slug => list( $title, $block ) ) {
 			$id = c4u_seed_post(

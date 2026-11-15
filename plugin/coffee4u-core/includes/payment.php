@@ -57,13 +57,15 @@ function c4u_with_db_lock( $name, callable $callback ) {
 function c4u_process_payment( $order, $input ) {
 	// Serialised per customer so concurrent requests cannot pay the same order twice
 	// or redeem a first-order promo code on two orders.
+	$charge = function () use ( $order, $input ) {
+		// Re-read inside the lock: a concurrent request may have just paid this or another order.
+		wp_cache_delete( $order['id'], 'post_meta' );
+		return c4u_charge_order( c4u_get_order( $order['id'] ), $input );
+	};
 	$result = c4u_with_db_lock(
 		'pay_' . (int) $order['user_id'],
-		function () use ( $order, $input ) {
-			// Re-read inside the lock: a concurrent request may have just paid this or another order.
-			wp_cache_delete( $order['id'], 'post_meta' );
-			return c4u_charge_order( c4u_get_order( $order['id'] ), $input );
-		}
+		// A group order is also locked against the organizer re-opening the group mid-payment.
+		fn() => $order['group'] ? c4u_with_group_lock( $order['group']['id'], $charge ) : $charge()
 	);
 	return $result ?? new WP_Error( 'c4u_payment_busy', __( 'Another payment is in progress. Please try again.', 'coffee4u' ), array( 'status' => 409 ) );
 }

@@ -140,7 +140,8 @@ add_action(
 						'type'     => 'integer',
 						'required' => true,
 						'minimum'  => 0,
-						'maximum'  => 99,
+						// c4u_normalize_cart() caps this at 99 unless the cart is a merged group order.
+						'maximum'  => 99 * C4U_GROUP_MAX_SIZE,
 					),
 				),
 				'callback'            => function ( WP_REST_Request $request ) {

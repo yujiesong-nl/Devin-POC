@@ -101,6 +101,14 @@ function c4u_order_meta_box( $post ) {
 		echo esc_html( $row['label'] . ': ' . $row['value'] ) . '<br>';
 	}
 	echo '</p>';
+	if ( $order['group'] ) {
+		/* translators: 1: responses, 2: group size */
+		echo '<h4>' . esc_html( sprintf( __( 'Group order: %1$d of %2$d people', 'coffee4u' ), count( $order['group']['responses'] ), $order['group']['size'] ) ) . '</h4><table class="widefat striped"><thead><tr><th>' . esc_html__( 'Name', 'coffee4u' ) . '</th><th>' . esc_html__( 'Items', 'coffee4u' ) . '</th><th>' . esc_html__( 'Amount', 'coffee4u' ) . '</th></tr></thead><tbody>';
+		foreach ( $order['group']['responses'] as $response ) {
+			echo '<tr><td>' . esc_html( $response['name'] ) . '</td><td>' . esc_html( c4u_group_lines_summary( $response['lines'] ) ) . '</td><td>' . esc_html( c4u_format_money( $response['subtotal'] ) ) . '</td></tr>';
+		}
+		echo '</tbody></table>';
+	}
 }
 
 add_action(
