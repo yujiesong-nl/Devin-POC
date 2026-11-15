@@ -39,14 +39,13 @@ function c4u_card_brand( $number ) {
 }
 
 /**
- * Serialises payments per customer so concurrent requests cannot pay the same order twice
- * or redeem a first-order promo code on two orders.
+ * Runs $callback while holding a MySQL named lock, or returns null if the lock is not acquired.
  */
-function c4u_with_payment_lock( $user_id, callable $callback ) {
+function c4u_with_db_lock( $name, callable $callback ) {
 	global $wpdb;
-	$lock = 'c4u_pay_' . get_current_blog_id() . '_' . (int) $user_id;
+	$lock = 'c4u_' . get_current_blog_id() . '_' . $name;
 	if ( ! $wpdb->get_var( $wpdb->prepare( 'SELECT GET_LOCK(%s, 10)', $lock ) ) ) {
-		return new WP_Error( 'c4u_payment_busy', __( 'Another payment is in progress. Please try again.', 'coffee4u' ), array( 'status' => 409 ) );
+		return null;
 	}
 	try {
 		return $callback();
@@ -56,14 +55,17 @@ function c4u_with_payment_lock( $user_id, callable $callback ) {
 }
 
 function c4u_process_payment( $order, $input ) {
-	return c4u_with_payment_lock(
-		$order['user_id'],
+	// Serialised per customer so concurrent requests cannot pay the same order twice
+	// or redeem a first-order promo code on two orders.
+	$result = c4u_with_db_lock(
+		'pay_' . (int) $order['user_id'],
 		function () use ( $order, $input ) {
 			// Re-read inside the lock: a concurrent request may have just paid this or another order.
 			wp_cache_delete( $order['id'], 'post_meta' );
 			return c4u_charge_order( c4u_get_order( $order['id'] ), $input );
 		}
 	);
+	return $result ?? new WP_Error( 'c4u_payment_busy', __( 'Another payment is in progress. Please try again.', 'coffee4u' ), array( 'status' => 409 ) );
 }
 
 function c4u_charge_order( $order, $input ) {

@@ -143,15 +143,23 @@ add_action(
 			return;
 		}
 		foreach ( array_keys( c4u_login_throttle_keys( $login ) ) as $key ) {
-			$record = get_transient( $key );
-			if ( ! is_array( $record ) || $record['since'] + C4U_LOGIN_WINDOW <= time() ) {
-				$record = array(
-					'count' => 0,
-					'since' => time(),
-				);
-			}
-			++$record['count'];
-			set_transient( $key, $record, $record['since'] + C4U_LOGIN_WINDOW - time() );
+			// Locked read-modify-write so concurrent failures are all counted.
+			c4u_with_db_lock(
+				$key,
+				function () use ( $key ) {
+					wp_cache_delete( '_transient_' . $key, 'options' );
+					wp_cache_delete( '_transient_timeout_' . $key, 'options' );
+					$record = get_transient( $key );
+					if ( ! is_array( $record ) || $record['since'] + C4U_LOGIN_WINDOW <= time() ) {
+						$record = array(
+							'count' => 0,
+							'since' => time(),
+						);
+					}
+					++$record['count'];
+					set_transient( $key, $record, $record['since'] + C4U_LOGIN_WINDOW - time() );
+				}
+			);
 		}
 	},
 	10,
