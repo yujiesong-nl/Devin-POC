@@ -12,7 +12,8 @@ if ( ! defined( 'ABSPATH' ) ) {
  * Customers always sign in with their e-mail address, so the login name is never shown.
  */
 function c4u_login_name_for( $email ) {
-	if ( strlen( $email ) <= 60 ) {
+	// Characters such as "|" are valid in e-mails but break WordPress auth cookies, so only plain addresses are used as-is.
+	if ( strlen( $email ) <= 60 && sanitize_user( $email, true ) === $email ) {
 		return $email;
 	}
 	$base  = substr( sanitize_user( strstr( $email, '@', true ), true ), 0, 40 );
