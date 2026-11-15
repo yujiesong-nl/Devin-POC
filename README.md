@@ -54,6 +54,7 @@ Open http://localhost:8080. Admin: http://localhost:8080/wp-admin (`admin` / `ad
 | POST | `/checkout` | Create an order from the cart (signed in) |
 | POST | `/orders/{id}/pay` | Simulated card payment (order owner only) |
 | POST | `/auth/register`, `/auth/login` | Customer sign-up / sign-in |
+| GET / POST | `/account/profile` | View or edit the signed-in customer's name, phone, e-mail and password |
 | POST | `/groups` | Start a group order (signed-in organizer): size, timer, optional per-person limit |
 | GET | `/groups/{id}` | Organizer view: responses, total, time left |
 | POST / DELETE | `/groups/{id}/extend`, `/groups/{id}/responses/{response}` | Add time, remove a response |
@@ -67,13 +68,14 @@ Open http://localhost:8080. Admin: http://localhost:8080/wp-admin (`admin` / `ad
 - Customers can only view or pay for their own orders. REST calls use the core cookie and nonce authentication.
 - Payments are serialised per customer, and a first-order-only promo code is checked again when an order is paid, so it cannot be redeemed on several pending orders.
 - Sign-in (storefront and `wp-login.php`) is locked for 15 minutes after 5 failed attempts for one account or 20 from one IP address.
+- Editing the profile: changing the e-mail or password needs the current password. A wrong current password counts toward the sign-in lockout. After the change, the old e-mail no longer signs in, and every other browser is signed out.
 - Group orders: the invite link carries a random 32-character token. Each participant gets a private key (kept in their browser) to edit their own response, and never sees anyone else's. Group size, timer and the per-person limit are enforced on the server under a per-group lock. The organizer pays the merged total through the normal checkout; each person's items are saved on the order.
 
 ## Design source
 
 Figma file *Coffee4U* (desktop frames, 1024px wide). Colours, type sizes and assets come from the Figma frames through the Figma MCP server. The prototype has no mobile frames, so the mobile layout (hamburger menu, stacked cart, two-column menu grid) was added.
 
-Out of scope for this POC: split payments for group orders, sending invites by SMS or email from the server (links are shared from the device), editing the user profile, saved payment cards, and real payment processing.
+Out of scope for this POC: split payments for group orders, sending invites by SMS or email from the server (links are shared from the device), saved payment cards, a favourite location, and real payment processing.
 
 ## Layout
 

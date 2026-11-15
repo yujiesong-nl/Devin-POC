@@ -157,6 +157,50 @@
 		} );
 	} );
 
+	/* Edit profile ------------------------------------------------------ */
+	const profileModal = $( '[data-c4u-profile-modal]' );
+	if ( profileModal ) {
+		const form = $( '[data-c4u-profile-form]', profileModal );
+		const currentRow = $( '[data-c4u-current-password]', form );
+		const needsCurrent = () =>
+			form.elements.email.value.trim().toLowerCase() !== form.dataset.email.toLowerCase() || form.elements.password.value !== '';
+		// Restores the saved details, dropping anything typed but not saved.
+		const reset = () => {
+			form.reset();
+			currentRow.hidden = true;
+			showErrors( form, null );
+		};
+
+		document.addEventListener( 'click', ( event ) => {
+			if ( event.target.closest( '[data-c4u-profile]' ) ) {
+				reset();
+				openDialog( profileModal );
+				form.elements.name.focus();
+			}
+		} );
+		form.addEventListener( 'input', () => ( currentRow.hidden = ! needsCurrent() ) );
+		form.addEventListener( 'submit', async ( event ) => {
+			event.preventDefault();
+			const button = $( '[type="submit"]', form );
+			setBusy( button, true );
+			showErrors( form, null );
+			try {
+				const profile = await api( 'account/profile', { method: 'POST', body: formData( form ) } );
+				[ 'name', 'phone', 'email' ].forEach( ( field ) => ( form.elements[ field ].defaultValue = profile[ field ] ) );
+				form.dataset.email = profile.email;
+				$$( '[data-c4u-account-name]' ).forEach( ( node ) => ( node.textContent = profile.name ) );
+				reset();
+				profileModal.close();
+				toast( 'Your profile has been updated.' );
+			} catch ( error ) {
+				showErrors( form, error );
+				currentRow.hidden = ! needsCurrent() && ! error.fields.current_password;
+			} finally {
+				setBusy( button, false );
+			}
+		} );
+	}
+
 	/* Menu and cart ---------------------------------------------------- */
 	const menu = $( '[data-c4u-menu]' );
 
