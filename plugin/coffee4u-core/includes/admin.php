@@ -150,13 +150,35 @@ add_action(
 	}
 );
 $c4u_save_term = function ( $term_id ) {
-	if ( ! current_user_can( 'manage_categories' ) || ! isset( $_POST['c4u_order'] ) ) {
+	if ( ! isset( $_POST['c4u_order'] ) ) {
+		// Created outside the Menu Sections screen: place it after the existing sections.
+		if ( '' === get_term_meta( $term_id, 'c4u_order', true ) ) {
+			update_term_meta( $term_id, 'c4u_order', c4u_next_section_order( $term_id ) );
+		}
+		return;
+	}
+	if ( ! current_user_can( 'manage_categories' ) ) {
 		return;
 	}
 	check_admin_referer( isset( $_POST['action'] ) && 'add-tag' === $_POST['action'] ? 'add-tag' : 'update-tag_' . $term_id, isset( $_POST['action'] ) && 'add-tag' === $_POST['action'] ? '_wpnonce_add-tag' : '_wpnonce' );
 	update_term_meta( $term_id, 'c4u_order', (int) $_POST['c4u_order'] );
 	update_term_meta( $term_id, 'c4u_is_beverage', empty( $_POST['c4u_is_beverage'] ) ? 0 : 1 );
 };
+function c4u_next_section_order( $exclude_id = 0 ) {
+	$orders = array();
+	$ids    = get_terms(
+		array(
+			'taxonomy'   => 'c4u_menu_section',
+			'hide_empty' => false,
+			'exclude'    => array( $exclude_id ),
+			'fields'     => 'ids',
+		)
+	);
+	foreach ( is_wp_error( $ids ) ? array() : $ids as $id ) {
+		$orders[] = (int) get_term_meta( $id, 'c4u_order', true );
+	}
+	return $orders ? max( $orders ) + 1 : 0;
+}
 add_action( 'created_c4u_menu_section', $c4u_save_term );
 add_action( 'edited_c4u_menu_section', $c4u_save_term );
 

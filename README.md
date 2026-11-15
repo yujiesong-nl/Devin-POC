@@ -60,6 +60,8 @@ Open http://localhost:8080. Admin: http://localhost:8080/wp-admin (`admin` / `ad
 - Guest carts live in a transient keyed by an HttpOnly cookie and are merged into the account on sign-in.
 - The payment step checks the card number (Luhn and brand), expiry and CVV, then throws the card data away. Only the brand, last four digits and a reference are stored.
 - Customers can only view or pay for their own orders. REST calls use the core cookie and nonce authentication.
+- Payments are serialised per customer, and a first-order-only promo code is checked again when an order is paid, so it cannot be redeemed on several pending orders.
+- Sign-in (storefront and `wp-login.php`) is locked for 15 minutes after 5 failed attempts for one account or 20 from one IP address.
 
 ## Design source
 

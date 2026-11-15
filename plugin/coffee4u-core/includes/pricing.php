@@ -101,6 +101,7 @@ function c4u_calculate_totals( $cart, $user_id = null ) {
 
 	$discount     = 0;
 	$coupon       = null;
+	$coupon_first = false;
 	$coupon_error = null;
 	if ( $cart['coupon'] ) {
 		$found  = c4u_find_coupon( $cart['coupon'] );
@@ -109,7 +110,8 @@ function c4u_calculate_totals( $cart, $user_id = null ) {
 			$coupon_error = $result->get_error_message();
 		} else {
 			$discount = $result;
-			$coupon   = $found['code'];
+			$coupon       = $found['code'];
+			$coupon_first = $found['first_order_only'];
 		}
 	}
 
@@ -123,6 +125,7 @@ function c4u_calculate_totals( $cart, $user_id = null ) {
 		'subtotal'     => $subtotal,
 		'discount'     => $discount,
 		'coupon'       => $coupon,
+		'coupon_first' => $coupon_first,
 		'coupon_error' => $coupon_error,
 		'tax'          => $tax,
 		'service_fee'  => $service_fee,

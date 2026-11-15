@@ -185,13 +185,19 @@ function c4u_get_menu() {
 		array(
 			'taxonomy'   => 'c4u_menu_section',
 			'hide_empty' => true,
-			'meta_key'   => 'c4u_order',
-			'orderby'    => 'meta_value_num',
-			'order'      => 'ASC',
 		)
 	);
+	$terms = is_wp_error( $terms ) ? array() : $terms;
+	// Sections without a display order (e.g. created from the menu item editor) go last.
+	usort(
+		$terms,
+		function ( $a, $b ) {
+			$order = fn( $term ) => '' === get_term_meta( $term->term_id, 'c4u_order', true ) ? PHP_INT_MAX : (int) get_term_meta( $term->term_id, 'c4u_order', true );
+			return array( $order( $a ), $a->name ) <=> array( $order( $b ), $b->name );
+		}
+	);
 	$menu = array();
-	foreach ( is_wp_error( $terms ) ? array() : $terms as $term ) {
+	foreach ( $terms as $term ) {
 		$ids   = get_posts(
 			array(
 				'post_type'      => 'c4u_product',

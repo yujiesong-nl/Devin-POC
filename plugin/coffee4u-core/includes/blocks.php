@@ -261,6 +261,13 @@ function c4u_signin_required( $message ) {
 	return '<div class="c4u-panel c4u-center"><p>' . esc_html( $message ) . '</p><button type="button" class="c4u-button" data-c4u-auth="signin">' . esc_html__( 'Sign-in/Register', 'coffee4u' ) . '</button></div>';
 }
 
+function c4u_promo_button_label( $data ) {
+	if ( ! $data['coupon_code'] ) {
+		return __( 'Apply', 'coffee4u' );
+	}
+	return $data['coupon'] ? __( 'Applied', 'coffee4u' ) : __( 'Remove', 'coffee4u' );
+}
+
 function c4u_render_checkout() {
 	$cart     = c4u_get_cart();
 	$location = c4u_get_location( $cart['location_id'] );
@@ -283,8 +290,8 @@ function c4u_render_checkout() {
 		</ul>
 		<form class="c4u-promo" data-c4u-promo>
 			<label class="screen-reader-text" for="c4u-promo-code"><?php esc_html_e( 'Promo code', 'coffee4u' ); ?></label>
-			<input id="c4u-promo-code" name="code" placeholder="<?php esc_attr_e( 'Enter Promo Code', 'coffee4u' ); ?>" value="<?php echo esc_attr( (string) $data['coupon'] ); ?>" autocomplete="off" <?php disabled( (bool) $data['coupon'] ); ?>>
-			<button type="submit" class="c4u-button c4u-button--dark" data-applied="<?php echo $data['coupon'] ? '1' : '0'; ?>"><?php echo $data['coupon'] ? esc_html__( 'Applied', 'coffee4u' ) : esc_html__( 'Apply', 'coffee4u' ); ?></button>
+			<input id="c4u-promo-code" name="code" placeholder="<?php esc_attr_e( 'Enter Promo Code', 'coffee4u' ); ?>" value="<?php echo esc_attr( (string) $data['coupon_code'] ); ?>" autocomplete="off" <?php disabled( (bool) $data['coupon_code'] ); ?>>
+			<button type="submit" class="c4u-button c4u-button--dark" data-applied="<?php echo $data['coupon_code'] ? '1' : '0'; ?>"<?php echo $data['coupon_code'] ? ' title="' . esc_attr__( 'Click to remove the promo code', 'coffee4u' ) . '"' : ''; ?>><?php echo esc_html( c4u_promo_button_label( $data ) ); ?></button>
 		</form>
 		<p class="c4u-form-error" data-c4u-error role="alert"><?php echo esc_html( (string) $data['coupon_error'] ); ?></p>
 		<dl class="c4u-summary__rows" data-c4u-rows>
@@ -311,6 +318,10 @@ function c4u_render_payment() {
 	$out .= c4u_back_link( c4u_page_url( 'checkout' ) ) . '<h1 class="c4u-page__title">' . esc_html( $order['location']['name'] ) . '</h1>';
 	if ( 'paid' === $order['status'] ) {
 		return $out . '<div class="c4u-panel c4u-center"><p>' . esc_html__( 'This order has already been paid.', 'coffee4u' ) . '</p><a class="c4u-button" href="' . esc_url( $order['confirmation_url'] ) . '">' . esc_html__( 'View Confirmation', 'coffee4u' ) . '</a></div></section>';
+	}
+	$payable = c4u_order_payable( $order );
+	if ( is_wp_error( $payable ) ) {
+		return $out . '<div class="c4u-panel c4u-center"><p>' . esc_html( $payable->get_error_message() ) . '</p><a class="c4u-button" href="' . esc_url( c4u_page_url( 'checkout' ) ) . '">' . esc_html__( 'Back to Checkout', 'coffee4u' ) . '</a></div></section>';
 	}
 	$user  = wp_get_current_user();
 	$phone = get_user_meta( $user->ID, 'c4u_phone', true );

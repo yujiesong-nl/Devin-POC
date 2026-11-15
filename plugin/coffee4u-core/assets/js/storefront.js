@@ -81,9 +81,12 @@
 	document.addEventListener( 'click', ( event ) => {
 		const toggle = event.target.closest( '[data-c4u-toggle]' );
 		$$( '[data-c4u-toggle]' ).forEach( ( other ) => {
-			if ( other !== toggle && ! event.target.closest( '.c4u-account__menu' ) ) {
+			const container = other.closest( '.c4u-account, .c4u-nav' );
+			// Keep the hamburger open while the account menu nested inside it is toggled.
+			const isAncestor = toggle && toggle !== other && container.contains( toggle );
+			if ( other !== toggle && ! isAncestor && ! event.target.closest( '.c4u-account__menu' ) ) {
 				other.setAttribute( 'aria-expanded', 'false' );
-				other.closest( '.c4u-account, .c4u-nav' ).classList.remove( 'is-open' );
+				container.classList.remove( 'is-open' );
 				const menu = other.parentElement.querySelector( '.c4u-account__menu' );
 				if ( menu && other.dataset.c4uToggle === 'account' ) {
 					menu.hidden = true;
@@ -311,11 +314,12 @@
 		$( '[data-c4u-total]', checkout ).textContent = cart.total;
 		const input = promo.elements.code;
 		const button = $( 'button', promo );
-		input.disabled = Boolean( cart.coupon );
-		input.value = cart.coupon || input.value;
-		button.dataset.applied = cart.coupon ? '1' : '0';
-		button.textContent = cart.coupon ? 'Applied' : 'Apply';
-		button.title = cart.coupon ? 'Click to remove the promo code' : '';
+		// A stored code that no longer applies stays removable, otherwise checkout is blocked.
+		input.disabled = Boolean( cart.coupon_code );
+		input.value = cart.coupon_code || input.value;
+		button.dataset.applied = cart.coupon_code ? '1' : '0';
+		button.textContent = cart.promo_label;
+		button.title = cart.coupon_code ? 'Click to remove the promo code' : '';
 		$( '[data-c4u-error]', checkout ).textContent = cart.coupon_error || '';
 	}
 

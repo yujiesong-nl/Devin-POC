@@ -83,10 +83,28 @@ function c4u_get_order( $order_id ) {
 		'location'         => $location,
 		'totals'           => (array) get_post_meta( $post->ID, '_c4u_totals', true ),
 		'payment'          => get_post_meta( $post->ID, '_c4u_payment', true ),
+		'cart'             => c4u_order_cart( $post->ID ),
 		'created'          => get_post_time( 'U', true, $post ),
 		'ready_minutes'    => (int) ( $location['prep_minutes'] ?? 20 ),
 		'payment_url'      => c4u_page_url( 'payment', array( 'order' => $post->ID ) ),
 		'confirmation_url' => c4u_page_url( 'order-confirmed', array( 'order' => $post->ID ) ),
+	);
+}
+
+/**
+ * The cart an order was created from, rebuilt from its saved line items.
+ */
+function c4u_order_cart( $order_id ) {
+	$totals = (array) get_post_meta( $order_id, '_c4u_totals', true );
+	$items  = array();
+	foreach ( $totals['lines'] ?? array() as $line ) {
+		$items[ $line['product_id'] ] = $line['quantity'];
+	}
+	return c4u_normalize_cart(
+		array(
+			'location_id' => (int) get_post_meta( $order_id, '_c4u_location_id', true ),
+			'items'       => $items,
+		)
 	);
 }
 
@@ -99,6 +117,30 @@ function c4u_get_customer_order( $order_id ) {
 		return null;
 	}
 	return $order;
+}
+
+/**
+ * Returns true when a pending order can still be paid, or a WP_Error explaining why not.
+ * A first-order-only promo code saved on the order is checked again, because the customer
+ * may have paid another order since this one was created.
+ */
+function c4u_order_payable( $order ) {
+	if ( 'pending_payment' !== $order['status'] ) {
+		return new WP_Error( 'c4u_order_paid', __( 'This order has already been paid.', 'coffee4u' ), array( 'status' => 409 ) );
+	}
+	$code = $order['totals']['coupon'] ?? null;
+	if ( $code ) {
+		$first_order_only = $order['totals']['coupon_first'] ?? ( c4u_find_coupon( $code )['first_order_only'] ?? true );
+		if ( $first_order_only && c4u_user_has_paid_orders( $order['user_id'] ) ) {
+			return new WP_Error(
+				'c4u_coupon_used',
+				/* translators: %s: promo code */
+				sprintf( __( 'Promo code %s is only valid on your first order and can no longer be used for this order. Please check out again.', 'coffee4u' ), $code ),
+				array( 'status' => 409 )
+			);
+		}
+	}
+	return true;
 }
 
 function c4u_user_has_paid_orders( $user_id ) {
