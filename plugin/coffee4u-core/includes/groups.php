@@ -29,6 +29,7 @@ function c4u_get_group( $group_id ) {
 		'status'     => (string) get_post_meta( $post->ID, '_c4u_status', true ),
 		'responses'  => array_values( (array) get_post_meta( $post->ID, '_c4u_responses', true ) ),
 		'order_id'   => (int) get_post_meta( $post->ID, '_c4u_order_id', true ),
+		'revision'   => (int) get_post_meta( $post->ID, '_c4u_revision', true ),
 		'token'      => $token,
 		'created'    => get_post_time( 'U', true, $post ),
 		'join_url'   => c4u_page_url( 'group-join', array( 't' => $token ) ),
@@ -286,6 +287,8 @@ function c4u_confirm_group( $group_id, $replace_cart ) {
 			}
 			c4u_save_cart( $cart, $group['user_id'] );
 			update_post_meta( $group['id'], '_c4u_status', 'confirmed' );
+			// Orders checked out from an earlier confirmation can no longer be paid.
+			update_post_meta( $group['id'], '_c4u_revision', $group['revision'] + 1 );
 			return c4u_get_group( $group['id'] );
 		}
 	);
@@ -376,10 +379,23 @@ function c4u_group_order_snapshot( $cart, $user_id ) {
 	return array(
 		'id'        => $group['id'],
 		'size'      => $group['size'],
+		'revision'  => $group['revision'],
 		'responses' => array_map( fn( $response ) => wp_array_slice_assoc( $response, array( 'name', 'lines', 'subtotal' ) ), $group['responses'] ),
 	);
 }
 
+/**
+ * A group order can only be paid while the group is confirmed and unchanged since checkout.
+ */
+function c4u_group_order_payable( $order ) {
+	$group = c4u_get_group( $order['group']['id'] );
+	if ( ! $group || 'confirmed' !== $group['status'] || $group['revision'] !== (int) ( $order['group']['revision'] ?? -1 ) ) {
+		return new WP_Error( 'c4u_group_changed', __( 'This group order has changed. Confirm it again on the group order page.', 'coffee4u' ), array( 'status' => 409 ) );
+	}
+	return true;
+}
+
+// Runs inside the group lock taken by c4u_process_payment().
 add_action(
 	'c4u_order_paid',
 	function ( $order_id ) {

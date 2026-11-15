@@ -45,6 +45,11 @@ function c4u_create_order_from_cart( $user_id ) {
 	if ( $totals['coupon_error'] ) {
 		return new WP_Error( 'c4u_coupon_invalid', $totals['coupon_error'], array( 'status' => 400 ) );
 	}
+	$group = c4u_group_order_snapshot( $cart, $user_id );
+	$ready = $group ? c4u_group_order_payable( array( 'group' => $group ) ) : true;
+	if ( is_wp_error( $ready ) ) {
+		return $ready;
+	}
 
 	$number   = c4u_next_order_number();
 	$order_id = wp_insert_post(
@@ -66,7 +71,7 @@ function c4u_create_order_from_cart( $user_id ) {
 	update_post_meta( $order_id, '_c4u_location_id', $location['id'] );
 	update_post_meta( $order_id, '_c4u_location', $location );
 	update_post_meta( $order_id, '_c4u_totals', $totals );
-	update_post_meta( $order_id, '_c4u_group', c4u_group_order_snapshot( $cart, $user_id ) );
+	update_post_meta( $order_id, '_c4u_group', $group );
 	return c4u_get_order( $order_id );
 }
 
@@ -142,7 +147,7 @@ function c4u_order_payable( $order ) {
 			);
 		}
 	}
-	return true;
+	return $order['group'] ? c4u_group_order_payable( $order ) : true;
 }
 
 function c4u_user_has_paid_orders( $user_id ) {
