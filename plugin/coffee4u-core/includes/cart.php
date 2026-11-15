@@ -14,6 +14,7 @@ function c4u_empty_cart() {
 		'location_id' => 0,
 		'items'       => array(),
 		'coupon'      => '',
+		'group_id'    => 0,
 	);
 }
 
@@ -54,6 +55,7 @@ function c4u_normalize_cart( $cart ) {
 	$cart['items']       = $items;
 	$cart['location_id'] = $items ? (int) $cart['location_id'] : 0;
 	$cart['coupon']      = $items ? (string) $cart['coupon'] : '';
+	$cart['group_id']    = $items ? (int) $cart['group_id'] : 0;
 	return $cart;
 }
 

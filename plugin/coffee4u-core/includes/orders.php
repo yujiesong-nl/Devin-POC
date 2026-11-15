@@ -66,6 +66,7 @@ function c4u_create_order_from_cart( $user_id ) {
 	update_post_meta( $order_id, '_c4u_location_id', $location['id'] );
 	update_post_meta( $order_id, '_c4u_location', $location );
 	update_post_meta( $order_id, '_c4u_totals', $totals );
+	update_post_meta( $order_id, '_c4u_group', c4u_group_order_snapshot( $cart, $user_id ) );
 	return c4u_get_order( $order_id );
 }
 
@@ -84,6 +85,7 @@ function c4u_get_order( $order_id ) {
 		'totals'           => (array) get_post_meta( $post->ID, '_c4u_totals', true ),
 		'payment'          => get_post_meta( $post->ID, '_c4u_payment', true ),
 		'cart'             => c4u_order_cart( $post->ID ),
+		'group'            => get_post_meta( $post->ID, '_c4u_group', true ) ?: null, // phpcs:ignore Universal.Operators.DisallowShortTernary
 		'created'          => get_post_time( 'U', true, $post ),
 		'ready_minutes'    => (int) ( $location['prep_minutes'] ?? 20 ),
 		'payment_url'      => c4u_page_url( 'payment', array( 'order' => $post->ID ) ),

@@ -98,6 +98,18 @@ function c4u_register_content_types() {
 		)
 	);
 
+	register_post_type(
+		'c4u_group',
+		array(
+			'labels'  => array(
+				'name'          => __( 'Group Orders', 'coffee4u' ),
+				'singular_name' => __( 'Group Order', 'coffee4u' ),
+			),
+			'public'  => false,
+			'show_ui' => false,
+		)
+	);
+
 	register_term_meta(
 		'c4u_menu_section',
 		'c4u_order',

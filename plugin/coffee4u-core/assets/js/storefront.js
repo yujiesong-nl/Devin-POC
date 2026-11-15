@@ -1,4 +1,4 @@
-/* Coffee4U storefront: navigation, sign-in, menu, cart, checkout and payment. No dependencies. */
+/* Coffee4U storefront: navigation, sign-in, menu, cart, group orders, checkout and payment. No dependencies. */
 ( function () {
 	'use strict';
 
@@ -102,12 +102,6 @@
 			toggle.parentElement.querySelector( '.c4u-account__menu' ).hidden = ! expanded;
 		} else {
 			toggle.closest( '.c4u-nav' ).classList.toggle( 'is-open', expanded );
-		}
-	} );
-
-	document.addEventListener( 'click', ( event ) => {
-		if ( event.target.closest( '[data-c4u-coming-soon]' ) ) {
-			toast( 'Group ordering is coming soon.' );
 		}
 	} );
 
@@ -222,15 +216,16 @@
 		}
 	}
 
-	if ( menu ) {
-		const modal = $( '[data-c4u-product-modal]', menu );
+	/**
+	 * Opens the product dialog when a menu card in root is clicked; onAdd( product, quantity ) resolves to close it.
+	 */
+	function bindProductPicker( root, onAdd ) {
+		const modal = $( '[data-c4u-product-modal]', root );
 		const qtyOutput = $( '[data-c4u-qty] output', modal );
 		let product = null;
 		let quantity = 1;
 
-		api( 'cart' ).then( renderCart ).catch( () => {} );
-
-		menu.addEventListener( 'click', ( event ) => {
+		root.addEventListener( 'click', ( event ) => {
 			const card = event.target.closest( '[data-c4u-product]' );
 			if ( ! card ) {
 				return;
@@ -259,26 +254,34 @@
 
 		$( '[data-c4u-add-to-cart]', modal ).addEventListener( 'click', async ( event ) => {
 			const button = event.currentTarget;
-			const body = { product_id: product.id, location_id: Number( menu.dataset.locationId ), quantity };
 			setBusy( button, true );
 			try {
-				let cart;
-				try {
-					cart = await api( 'cart/items', { method: 'POST', body } );
-				} catch ( error ) {
-					if ( error.code !== 'c4u_location_mismatch' || ! window.confirm( error.message ) ) {
-						throw error;
-					}
-					cart = await api( 'cart/items', { method: 'POST', body: Object.assign( body, { replace: true } ) } );
-				}
-				renderCart( cart );
+				await onAdd( product, quantity );
 				modal.close();
-				toast( quantity + ' x ' + product.name + ' added to your cart.' );
 			} catch ( error ) {
 				$( '[data-c4u-error]', modal ).textContent = error.message;
 			} finally {
 				setBusy( button, false );
 			}
+		} );
+	}
+
+	if ( menu ) {
+		api( 'cart' ).then( renderCart ).catch( () => {} );
+
+		bindProductPicker( menu, async ( product, quantity ) => {
+			const body = { product_id: product.id, location_id: Number( menu.dataset.locationId ), quantity };
+			let cart;
+			try {
+				cart = await api( 'cart/items', { method: 'POST', body } );
+			} catch ( error ) {
+				if ( error.code !== 'c4u_location_mismatch' || ! window.confirm( error.message ) ) {
+					throw error;
+				}
+				cart = await api( 'cart/items', { method: 'POST', body: Object.assign( body, { replace: true } ) } );
+			}
+			renderCart( cart );
+			toast( quantity + ' x ' + product.name + ' added to your cart.' );
 		} );
 
 		$( '[data-c4u-cart-toggle]', menu ).addEventListener( 'click', ( event ) => {
@@ -389,6 +392,401 @@
 			} catch ( error ) {
 				showErrors( payForm, error );
 				setBusy( button, false );
+			}
+		} );
+	}
+
+	/* Group ordering --------------------------------------------------- */
+	const SHARE_TEXT = 'Join my Coffee4U group order and pick what you would like: ';
+	const money = ( cents ) => '$' + ( cents / 100 ).toFixed( 2 );
+
+	function timeLeft( seconds ) {
+		if ( seconds >= 60 ) {
+			const minutes = Math.ceil( seconds / 60 );
+			return minutes + ( minutes === 1 ? ' minute' : ' minutes' ) + ' left';
+		}
+		return seconds + ( seconds === 1 ? ' second' : ' seconds' ) + ' left';
+	}
+
+	// Returns a setter taking the server's seconds_left; onTick( seconds ) then runs every second.
+	function countdown( onTick ) {
+		let deadline = Date.now();
+		const tick = () => onTick( Math.max( 0, Math.round( ( deadline - Date.now() ) / 1000 ) ) );
+		setInterval( tick, 1000 );
+		return ( secondsLeft ) => {
+			deadline = Date.now() + secondsLeft * 1000;
+			tick();
+		};
+	}
+
+	function shareUrl( network, link ) {
+		const text = encodeURIComponent( SHARE_TEXT + link );
+		const url = encodeURIComponent( link );
+		return {
+			sms: 'sms:?&body=' + text,
+			whatsapp: 'https://wa.me/?text=' + text,
+			facebook: 'https://www.facebook.com/sharer/sharer.php?u=' + url,
+			email: 'mailto:?subject=' + encodeURIComponent( 'Coffee4U group order' ) + '&body=' + text,
+			teams: 'https://teams.microsoft.com/share?href=' + url + '&msgText=' + encodeURIComponent( SHARE_TEXT.trim() ),
+		}[ network ];
+	}
+
+	async function copyText( text ) {
+		try {
+			await navigator.clipboard.writeText( text );
+			return true;
+		} catch ( error ) {
+			return false;
+		}
+	}
+
+	function bindShare( root, getLink ) {
+		root.addEventListener( 'click', async ( event ) => {
+			const copy = event.target.closest( '[data-c4u-group-copy]' );
+			const button = event.target.closest( '[data-c4u-share]' );
+			const link = getLink();
+			if ( ! link || ! ( copy || button ) ) {
+				return;
+			}
+			if ( copy ) {
+				$( '[data-c4u-group-link]', root ).select();
+				toast( ( await copyText( link ) ) ? 'Invite link copied.' : 'Select the link and copy it.' );
+				return;
+			}
+			const direct = shareUrl( button.dataset.c4uShare, link );
+			if ( direct ) {
+				if ( direct.startsWith( 'https:' ) ) {
+					window.open( direct, '_blank', 'noopener' );
+				} else {
+					window.location.href = direct;
+				}
+				return;
+			}
+			// Messenger, Instagram and Slack have no web share link: use the device share sheet or copy the link.
+			if ( navigator.share ) {
+				try {
+					await navigator.share( { title: 'Coffee4U group order', text: SHARE_TEXT, url: link } );
+					return;
+				} catch ( error ) {
+					if ( error.name === 'AbortError' ) {
+						return;
+					}
+				}
+			}
+			toast( ( ( await copyText( link ) ) ? 'Link copied. Paste it in ' : 'Copy the link and paste it in ' ) + button.title + '.' );
+		} );
+	}
+
+	const groupSetup = $( '[data-c4u-group-setup]' );
+	if ( groupSetup ) {
+		let link = '';
+		const limit = groupSetup.elements.limit;
+		bindShare( groupSetup, () => link );
+
+		$$( '[data-c4u-stepper]', groupSetup ).forEach( ( stepper ) => {
+			const input = $( 'input', stepper );
+			$$( '[data-step]', stepper ).forEach( ( button ) =>
+				button.addEventListener( 'click', () => {
+					const value = ( Number( input.value ) || 0 ) + Number( button.dataset.step );
+					input.value = String( Math.min( Number( input.max ), Math.max( Number( input.min ), value ) ) );
+				} )
+			);
+		} );
+
+		$$( '[name="has_limit"]', groupSetup ).forEach( ( radio ) =>
+			radio.addEventListener( 'change', () => {
+				limit.disabled = ! groupSetup.elements.has_limit.value;
+				if ( ! limit.disabled ) {
+					limit.focus();
+				}
+			} )
+		);
+
+		groupSetup.addEventListener( 'submit', async ( event ) => {
+			event.preventDefault();
+			const button = $( '[type="submit"]', groupSetup );
+			const data = formData( groupSetup );
+			setBusy( button, true );
+			showErrors( groupSetup, null );
+			try {
+				const group = await api( 'groups', {
+					method: 'POST',
+					body: {
+						location_id: Number( groupSetup.dataset.locationId ),
+						size: Number( data.size ),
+						minutes: Number( data.minutes ),
+						has_limit: Boolean( data.has_limit ),
+						limit: Number( data.limit || 0 ),
+					},
+				} );
+				link = group.join_url;
+				$( '[data-c4u-group-link]', groupSetup ).value = link;
+				$( '.c4u-group-share__link', groupSetup ).hidden = false;
+				$$( '[data-c4u-share]', groupSetup ).forEach( ( share ) => ( share.disabled = false ) );
+				$$( '.c4u-group-setup__row input, .c4u-group-setup__row button', groupSetup ).forEach( ( field ) => ( field.disabled = true ) );
+				const track = $( '[data-c4u-group-track]', groupSetup );
+				$( 'a', track ).href = group.status_url;
+				track.hidden = false;
+				button.classList.remove( 'is-busy' );
+				button.textContent = 'Link Generated';
+				toast( 'Your invite link is ready. Share it with your group.' );
+			} catch ( error ) {
+				showErrors( groupSetup, error );
+				setBusy( button, false );
+			}
+		} );
+	}
+
+	const groupStatus = $( '[data-c4u-group-status]' );
+	if ( groupStatus ) {
+		const STATE_TEXT = { full: 'All spots are filled', expired: 'Time is up', confirmed: 'Added to your cart', ordered: 'Ordered and paid' };
+		const error = $( '[data-c4u-error]', groupStatus );
+		let view = JSON.parse( groupStatus.dataset.c4uGroupStatus );
+		let editing = false;
+		const setTimer = countdown( ( seconds ) => {
+			const open = view.state === 'open' && seconds > 0;
+			$( '[data-c4u-group-left]', groupStatus ).textContent = open ? timeLeft( seconds ) : STATE_TEXT[ view.state === 'open' ? 'expired' : view.state ];
+		} );
+		bindShare( groupStatus.parentElement, () => view.join_url );
+
+		const render = ( next ) => {
+			view = next;
+			const rows = $( '[data-c4u-group-rows]', groupStatus );
+			rows.textContent = '';
+			for ( let i = 0; i < Math.max( view.size, view.responses.length ); i++ ) {
+				const response = view.responses[ i ];
+				const tr = document.createElement( 'tr' );
+				tr.innerHTML = '<td></td><td></td><td></td><td class="c4u-group-table__edit"></td>';
+				tr.cells[ 0 ].textContent = String( i + 1 );
+				if ( response ) {
+					const name = document.createElement( 'strong' );
+					const items = document.createElement( 'span' );
+					const remove = document.createElement( 'button' );
+					name.textContent = response.name;
+					items.textContent = response.summary;
+					remove.type = 'button';
+					remove.className = 'c4u-link';
+					remove.textContent = 'Remove';
+					remove.dataset.c4uRemove = response.id;
+					remove.setAttribute( 'aria-label', 'Remove the order from ' + response.name );
+					tr.cells[ 1 ].append( name, items );
+					tr.cells[ 2 ].textContent = response.subtotal;
+					tr.cells[ 3 ].append( remove );
+				} else {
+					tr.className = 'is-empty';
+					tr.cells[ 1 ].textContent = 'Waiting for a response';
+					tr.cells[ 2 ].textContent = '\u2014';
+				}
+				rows.append( tr );
+			}
+			$( '[data-c4u-group-total]', groupStatus ).textContent = view.total;
+			$( '[data-c4u-group-count]', groupStatus ).textContent = view.count + ' of ' + view.size;
+			const ordered = view.state === 'ordered';
+			editing = editing && ! ordered;
+			groupStatus.classList.toggle( 'is-editing', editing );
+			$( '[data-c4u-group-edit-panel]', groupStatus ).hidden = ! editing;
+			$( '[data-c4u-group-edit]', groupStatus ).hidden = ordered;
+			$( '[data-c4u-group-edit]', groupStatus ).setAttribute( 'aria-expanded', String( editing ) );
+			$( '[data-c4u-group-edit]', groupStatus ).textContent = editing ? 'Done Editing' : 'Edit Order';
+			$( '[data-c4u-group-confirm]', groupStatus ).disabled = ordered || ! view.count;
+			setTimer( view.seconds_left );
+		};
+
+		const act = async ( button, request ) => {
+			setBusy( button, true );
+			error.textContent = '';
+			try {
+				render( await request() );
+			} catch ( failure ) {
+				error.textContent = failure.message;
+			} finally {
+				setBusy( button, false );
+			}
+		};
+
+		render( view );
+		setInterval( () => {
+			if ( view.state === 'open' && ! editing && ! document.hidden ) {
+				api( 'groups/' + view.id ).then( render ).catch( () => {} );
+			}
+		}, 5000 );
+
+		groupStatus.addEventListener( 'click', ( event ) => {
+			const remove = event.target.closest( '[data-c4u-remove]' );
+			if ( remove && window.confirm( remove.getAttribute( 'aria-label' ) + '?' ) ) {
+				act( remove, () => api( 'groups/' + view.id + '/responses/' + remove.dataset.c4uRemove, { method: 'DELETE' } ) );
+			}
+		} );
+		$( '[data-c4u-group-edit]', groupStatus ).addEventListener( 'click', () => {
+			editing = ! editing;
+			render( view );
+		} );
+		$( '[data-c4u-group-extend]', groupStatus ).addEventListener( 'click', ( event ) =>
+			act( event.currentTarget, () => api( 'groups/' + view.id + '/extend', { method: 'POST', body: { minutes: 5 } } ) )
+		);
+		$( '[data-c4u-group-confirm]', groupStatus ).addEventListener( 'click', async ( event ) => {
+			const button = event.currentTarget;
+			const path = 'groups/' + view.id + '/confirm';
+			setBusy( button, true );
+			error.textContent = '';
+			try {
+				try {
+					await api( path, { method: 'POST' } );
+				} catch ( failure ) {
+					if ( failure.code !== 'c4u_cart_not_empty' || ! window.confirm( failure.message ) ) {
+						throw failure;
+					}
+					await api( path, { method: 'POST', body: { replace: true } } );
+				}
+				window.location.assign( view.checkout_url );
+			} catch ( failure ) {
+				error.textContent = failure.message;
+				setBusy( button, false );
+			}
+		} );
+	}
+
+	const groupJoin = $( '[data-c4u-group-join]' );
+	if ( groupJoin ) {
+		const token = groupJoin.dataset.c4uGroupJoin;
+		const storageKey = 'c4uGroup_' + token;
+		const form = $( '[data-c4u-join-form]', groupJoin );
+		const submit = $( '[data-c4u-join-submit]', form );
+		const products = {};
+		const picks = {};
+		let view = JSON.parse( groupJoin.dataset.c4uGroupView );
+		let secondsLeft = view.seconds_left;
+
+		$$( '[data-c4u-product]', groupJoin ).forEach( ( card ) => {
+			const product = JSON.parse( card.dataset.c4uProduct );
+			products[ product.id ] = product;
+		} );
+
+		const subtotal = () => Object.keys( picks ).reduce( ( sum, id ) => sum + products[ id ].price * picks[ id ], 0 );
+		const isOpen = () => secondsLeft > 0 && ( view.state === 'open' || ( view.state === 'full' && view.mine ) );
+
+		const renderPicks = () => {
+			const list = $( '[data-c4u-cart-items]', form );
+			const ids = Object.keys( picks );
+			list.textContent = '';
+			if ( ! ids.length ) {
+				const empty = document.createElement( 'p' );
+				empty.className = 'c4u-cart__empty';
+				empty.textContent = 'Select an item to add it to your order.';
+				list.append( empty );
+			} else {
+				const ul = document.createElement( 'ul' );
+				ul.className = 'c4u-cart__lines';
+				ids.forEach( ( id ) => {
+					const li = document.createElement( 'li' );
+					li.innerHTML =
+						'<span class="c4u-cart__name"></span>' +
+						'<span class="c4u-qty c4u-qty--small">' +
+						'<button type="button" data-step="-1" aria-label="Decrease quantity">&minus;</button>' +
+						'<output></output>' +
+						'<button type="button" data-step="1" aria-label="Increase quantity">+</button>' +
+						'</span><span class="c4u-cart__price"></span>';
+					$( '.c4u-cart__name', li ).textContent = products[ id ].name;
+					$( 'output', li ).textContent = picks[ id ];
+					$( '.c4u-cart__price', li ).textContent = money( products[ id ].price * picks[ id ] );
+					$$( '[data-step]', li ).forEach( ( button ) =>
+						button.addEventListener( 'click', () => {
+							picks[ id ] = Math.min( 99, picks[ id ] + Number( button.dataset.step ) );
+							if ( picks[ id ] < 1 ) {
+								delete picks[ id ];
+							}
+							renderPicks();
+						} )
+					);
+					ul.append( li );
+				} );
+				const total = document.createElement( 'p' );
+				total.className = 'c4u-cart__total';
+				total.innerHTML = '<span>Total</span><strong></strong>';
+				$( 'strong', total ).textContent = money( subtotal() );
+				list.append( ul, total );
+			}
+			const over = view.limit && subtotal() > view.limit;
+			$( '[data-c4u-error]', form ).textContent = over ? 'The limit is ' + money( view.limit ) + ' per person.' : '';
+			submit.disabled = ! ids.length || over || ! isOpen();
+		};
+
+		const renderState = () => {
+			const open = isOpen();
+			const meta = [ open ? timeLeft( secondsLeft ) : 'Closed' ];
+			if ( view.limit ) {
+				meta.push( 'Limit ' + money( view.limit ) + ' per person' );
+			}
+			if ( view.state === 'open' ) {
+				meta.push( view.spots_left + ( view.spots_left === 1 ? ' spot' : ' spots' ) + ' left' );
+			}
+			$( '[data-c4u-join-title]', groupJoin ).textContent = view.organizer ? 'You are invited to ' + view.organizer + "'s group order" : 'You are invited to a group order';
+			$( '[data-c4u-join-meta]', groupJoin ).textContent = meta.join( ' \u00b7 ' );
+			const closed = $( '[data-c4u-join-closed]', groupJoin );
+			closed.hidden = open;
+			$( '[data-c4u-join-open]', groupJoin ).hidden = ! open;
+			if ( ! open ) {
+				const reason = view.state === 'full' ? 'This group order is full.' : 'This group order is no longer taking orders.';
+				$( 'p', closed ).textContent = view.mine ? reason + ' Your order is in, thank you!' : reason;
+			}
+			submit.disabled = submit.disabled || ! open;
+		};
+
+		const applyView = ( next ) => {
+			view = next;
+			secondsLeft = view.seconds_left;
+			if ( view.mine ) {
+				form.elements.name.value = view.mine.name;
+				Object.keys( picks ).forEach( ( id ) => delete picks[ id ] );
+				Object.keys( view.mine.items ).forEach( ( id ) => {
+					if ( products[ id ] ) {
+						picks[ id ] = view.mine.items[ id ];
+					}
+				} );
+				$( '[data-c4u-join-done]', form ).hidden = false;
+				submit.textContent = 'Update My Order';
+			}
+			renderPicks();
+			renderState();
+		};
+
+		const key = localStorage.getItem( storageKey );
+		applyView( view );
+		if ( key ) {
+			api( 'group-join/' + token + '?key=' + encodeURIComponent( key ) ).then( applyView ).catch( () => {} );
+		}
+		setInterval( () => {
+			secondsLeft = Math.max( 0, secondsLeft - 1 );
+			renderState();
+		}, 1000 );
+
+		bindProductPicker( groupJoin, async ( product, quantity ) => {
+			picks[ product.id ] = Math.min( 99, ( picks[ product.id ] || 0 ) + quantity );
+			renderPicks();
+			toast( quantity + ' x ' + product.name + ' added to your order.' );
+		} );
+
+		form.addEventListener( 'submit', async ( event ) => {
+			event.preventDefault();
+			setBusy( submit, true );
+			showErrors( form, null );
+			try {
+				const result = await api( 'group-join/' + token, {
+					method: 'POST',
+					body: { name: form.elements.name.value, items: picks, key: localStorage.getItem( storageKey ) || '' },
+				} );
+				localStorage.setItem( storageKey, result.key );
+				applyView( result );
+				toast( 'Your order has been added to the group order.' );
+			} catch ( error ) {
+				showErrors( form, error );
+				if ( error.code === 'c4u_group_closed' ) {
+					api( 'group-join/' + token ).then( applyView ).catch( () => {} );
+				}
+			} finally {
+				submit.classList.remove( 'is-busy' );
+				renderPicks();
+				renderState();
 			}
 		} );
 	}
