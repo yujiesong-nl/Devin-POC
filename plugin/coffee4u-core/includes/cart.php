@@ -46,10 +46,12 @@ function c4u_guest_cart_token( $create = false ) {
 function c4u_normalize_cart( $cart ) {
 	$cart  = wp_parse_args( is_array( $cart ) ? $cart : array(), c4u_empty_cart() );
 	$items = array();
+	// A merged group order can hold up to 99 of a product for each person.
+	$max = (int) $cart['group_id'] ? 99 * C4U_GROUP_MAX_SIZE : 99;
 	foreach ( (array) $cart['items'] as $product_id => $quantity ) {
 		$quantity = (int) $quantity;
 		if ( $quantity > 0 && c4u_get_product( (int) $product_id ) ) {
-			$items[ (int) $product_id ] = min( 99, $quantity );
+			$items[ (int) $product_id ] = min( $max, $quantity );
 		}
 	}
 	$cart['items']       = $items;
