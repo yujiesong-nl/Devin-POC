@@ -38,9 +38,38 @@ function c4u_card_brand( $number ) {
 	return '';
 }
 
+/**
+ * Serialises payments per customer so concurrent requests cannot pay the same order twice
+ * or redeem a first-order promo code on two orders.
+ */
+function c4u_with_payment_lock( $user_id, callable $callback ) {
+	global $wpdb;
+	$lock = 'c4u_pay_' . get_current_blog_id() . '_' . (int) $user_id;
+	if ( ! $wpdb->get_var( $wpdb->prepare( 'SELECT GET_LOCK(%s, 10)', $lock ) ) ) {
+		return new WP_Error( 'c4u_payment_busy', __( 'Another payment is in progress. Please try again.', 'coffee4u' ), array( 'status' => 409 ) );
+	}
+	try {
+		return $callback();
+	} finally {
+		$wpdb->query( $wpdb->prepare( 'SELECT RELEASE_LOCK(%s)', $lock ) );
+	}
+}
+
 function c4u_process_payment( $order, $input ) {
-	if ( 'pending_payment' !== $order['status'] ) {
-		return new WP_Error( 'c4u_order_paid', __( 'This order has already been paid.', 'coffee4u' ), array( 'status' => 409 ) );
+	return c4u_with_payment_lock(
+		$order['user_id'],
+		function () use ( $order, $input ) {
+			// Re-read inside the lock: a concurrent request may have just paid this or another order.
+			wp_cache_delete( $order['id'], 'post_meta' );
+			return c4u_charge_order( c4u_get_order( $order['id'] ), $input );
+		}
+	);
+}
+
+function c4u_charge_order( $order, $input ) {
+	$payable = c4u_order_payable( $order );
+	if ( is_wp_error( $payable ) ) {
+		return $payable;
 	}
 
 	$number = preg_replace( '/\D/', '', (string) ( $input['card_number'] ?? '' ) );
@@ -93,7 +122,12 @@ function c4u_process_payment( $order, $input ) {
 		)
 	);
 	update_post_meta( $order['id'], '_c4u_status', 'paid' );
-	c4u_save_cart( c4u_empty_cart(), $order['user_id'] );
+
+	// Only clear the cart this order was created from; a cart changed since then is kept.
+	$cart = c4u_get_cart( $order['user_id'] );
+	if ( $cart['location_id'] === $order['cart']['location_id'] && $cart['items'] == $order['cart']['items'] ) { // phpcs:ignore Universal.Operators.StrictComparisons -- key order may differ.
+		c4u_save_cart( c4u_empty_cart(), $order['user_id'] );
+	}
 
 	do_action( 'c4u_order_paid', $order['id'] );
 	return c4u_get_order( $order['id'] );

@@ -30,6 +30,12 @@ function c4u_cart_response( $cart = null ) {
 		'coupon'          => $totals['coupon'],
 		'coupon_code'     => $cart['coupon'],
 		'coupon_error'    => $totals['coupon_error'],
+		'promo_label'     => c4u_promo_button_label(
+			array(
+				'coupon'      => $totals['coupon'],
+				'coupon_code' => $cart['coupon'],
+			)
+		),
 		'rows'            => c4u_totals_rows( $totals ),
 		'subtotal'        => c4u_format_money( $totals['subtotal'] ),
 		'total'           => c4u_format_money( $totals['total'] ),

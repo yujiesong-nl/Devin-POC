@@ -7,6 +7,22 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
+/**
+ * WordPress limits user_login to 60 characters; longer addresses get a unique internal login.
+ * Customers always sign in with their e-mail address, so the login name is never shown.
+ */
+function c4u_login_name_for( $email ) {
+	if ( strlen( $email ) <= 60 ) {
+		return $email;
+	}
+	$base  = substr( sanitize_user( strstr( $email, '@', true ), true ), 0, 40 );
+	$login = $base;
+	while ( '' === $login || username_exists( $login ) ) {
+		$login = $base . '-' . strtolower( wp_generate_password( 6, false ) );
+	}
+	return $login;
+}
+
 function c4u_register_customer( $input ) {
 	$name     = sanitize_text_field( (string) ( $input['name'] ?? '' ) );
 	$phone    = preg_replace( '/[^\d+\-\s()]/', '', (string) ( $input['phone'] ?? '' ) );
@@ -20,7 +36,7 @@ function c4u_register_customer( $input ) {
 	if ( strlen( preg_replace( '/\D/', '', $phone ) ) < 7 ) {
 		$errors['phone'] = __( 'Enter a valid phone number.', 'coffee4u' );
 	}
-	if ( ! is_email( $email ) ) {
+	if ( ! is_email( $email ) || strlen( $email ) > 100 ) {
 		$errors['email'] = __( 'Enter a valid e-mail address.', 'coffee4u' );
 	} elseif ( email_exists( $email ) || username_exists( $email ) ) {
 		$errors['email'] = __( 'An account with this e-mail already exists. Please sign in.', 'coffee4u' );
@@ -42,7 +58,7 @@ function c4u_register_customer( $input ) {
 	$parts   = explode( ' ', $name, 2 );
 	$user_id = wp_insert_user(
 		array(
-			'user_login'   => $email,
+			'user_login'   => c4u_login_name_for( $email ),
 			'user_email'   => $email,
 			'user_pass'    => $password,
 			'display_name' => $name,
@@ -71,10 +87,86 @@ function c4u_sign_in_customer( $input ) {
 		is_ssl()
 	);
 	if ( is_wp_error( $user ) ) {
+		if ( 'c4u_login_locked' === $user->get_error_code() ) {
+			return new WP_Error( 'c4u_login_locked', $user->get_error_message(), array( 'status' => 429 ) );
+		}
 		return new WP_Error( 'c4u_login_failed', __( 'The e-mail or password is incorrect.', 'coffee4u' ), array( 'status' => 401 ) );
 	}
 	return $user;
 }
+
+/*
+ * Sign-in throttling for the storefront and wp-login.php: too many failed attempts for one
+ * account or from one IP address lock further attempts for C4U_LOGIN_WINDOW seconds.
+ */
+const C4U_LOGIN_WINDOW      = 15 * MINUTE_IN_SECONDS;
+const C4U_LOGIN_MAX_ACCOUNT = 5;
+const C4U_LOGIN_MAX_IP      = 20;
+
+function c4u_login_throttle_keys( $login ) {
+	$ip      = isset( $_SERVER['REMOTE_ADDR'] ) ? sanitize_text_field( wp_unslash( $_SERVER['REMOTE_ADDR'] ) ) : '';
+	$login   = strtolower( trim( (string) $login ) );
+	$user    = is_email( $login ) ? get_user_by( 'email', $login ) : get_user_by( 'login', $login );
+	$account = $user ? 'user:' . $user->ID : $login;
+	return array(
+		'c4u_login_fail_a_' . md5( $account ) => C4U_LOGIN_MAX_ACCOUNT,
+		'c4u_login_fail_ip_' . md5( $ip )     => C4U_LOGIN_MAX_IP,
+	);
+}
+
+function c4u_login_locked( $login ) {
+	foreach ( c4u_login_throttle_keys( $login ) as $key => $max ) {
+		$record = get_transient( $key );
+		if ( is_array( $record ) && $record['count'] >= $max && $record['since'] + C4U_LOGIN_WINDOW > time() ) {
+			return true;
+		}
+	}
+	return false;
+}
+
+add_filter(
+	'authenticate',
+	function ( $user, $login ) {
+		if ( '' !== (string) $login && c4u_login_locked( $login ) ) {
+			return new WP_Error( 'c4u_login_locked', __( 'Too many failed sign-in attempts. Please try again in 15 minutes.', 'coffee4u' ) );
+		}
+		return $user;
+	},
+	99,
+	2
+);
+
+add_action(
+	'wp_login_failed',
+	function ( $login, $error = null ) {
+		if ( $error instanceof WP_Error && 'c4u_login_locked' === $error->get_error_code() ) {
+			return;
+		}
+		foreach ( array_keys( c4u_login_throttle_keys( $login ) ) as $key ) {
+			$record = get_transient( $key );
+			if ( ! is_array( $record ) || $record['since'] + C4U_LOGIN_WINDOW <= time() ) {
+				$record = array(
+					'count' => 0,
+					'since' => time(),
+				);
+			}
+			++$record['count'];
+			set_transient( $key, $record, $record['since'] + C4U_LOGIN_WINDOW - time() );
+		}
+	},
+	10,
+	2
+);
+
+add_action(
+	'wp_login',
+	function ( $login, $user ) {
+		$keys = array_keys( c4u_login_throttle_keys( $user->user_login ) );
+		delete_transient( $keys[0] );
+	},
+	10,
+	2
+);
 
 add_filter(
 	'show_admin_bar',
