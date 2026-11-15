@@ -147,6 +147,7 @@ add_action(
 			c4u_with_db_lock(
 				$key,
 				function () use ( $key ) {
+					wp_cache_delete( 'notoptions', 'options' );
 					wp_cache_delete( '_transient_' . $key, 'options' );
 					wp_cache_delete( '_transient_timeout_' . $key, 'options' );
 					$record = get_transient( $key );
