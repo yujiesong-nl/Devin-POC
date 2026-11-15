@@ -606,7 +606,8 @@
 
 		render( view );
 		setInterval( () => {
-			if ( view.state === 'open' && ! editing && ! document.hidden ) {
+			// Participants can still edit their orders while the group is full.
+			if ( [ 'open', 'full' ].includes( view.state ) && ! editing && ! document.hidden ) {
 				api( 'groups/' + view.id ).then( render ).catch( () => {} );
 			}
 		}, 5000 );
@@ -707,7 +708,12 @@
 				list.append( ul, total );
 			}
 			const over = view.limit && subtotal() > view.limit;
-			$( '[data-c4u-error]', form ).textContent = over ? 'The limit is ' + money( view.limit ) + ' per person.' : '';
+			const error = $( '[data-c4u-error]', form );
+			// Only clear the limit message this function wrote, not a server error.
+			if ( over || error.dataset.limit ) {
+				error.textContent = over ? 'The limit is ' + money( view.limit ) + ' per person.' : '';
+			}
+			error.dataset.limit = over ? '1' : '';
 			submit.disabled = ! ids.length || over || ! isOpen();
 		};
 
@@ -759,6 +765,21 @@
 			secondsLeft = Math.max( 0, secondsLeft - 1 );
 			renderState();
 		}, 1000 );
+		// Picks up timer extensions and spots freed by the organizer without touching unsaved picks.
+		setInterval( () => {
+			if ( document.hidden || view.state === 'ordered' ) {
+				return;
+			}
+			const saved = localStorage.getItem( storageKey );
+			api( 'group-join/' + token + ( saved ? '?key=' + encodeURIComponent( saved ) : '' ) )
+				.then( ( next ) => {
+					view = next;
+					secondsLeft = next.seconds_left;
+					renderPicks();
+					renderState();
+				} )
+				.catch( () => {} );
+		}, 10000 );
 
 		bindProductPicker( groupJoin, async ( product, quantity ) => {
 			picks[ product.id ] = Math.min( 99, ( picks[ product.id ] || 0 ) + quantity );
