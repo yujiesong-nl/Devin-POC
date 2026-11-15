@@ -66,7 +66,6 @@ function c4u_create_order_from_cart( $user_id ) {
 	update_post_meta( $order_id, '_c4u_location_id', $location['id'] );
 	update_post_meta( $order_id, '_c4u_location', $location );
 	update_post_meta( $order_id, '_c4u_totals', $totals );
-	update_post_meta( $order_id, '_c4u_cart', $cart );
 	return c4u_get_order( $order_id );
 }
 
@@ -84,11 +83,28 @@ function c4u_get_order( $order_id ) {
 		'location'         => $location,
 		'totals'           => (array) get_post_meta( $post->ID, '_c4u_totals', true ),
 		'payment'          => get_post_meta( $post->ID, '_c4u_payment', true ),
-		'cart'             => c4u_normalize_cart( get_post_meta( $post->ID, '_c4u_cart', true ) ),
+		'cart'             => c4u_order_cart( $post->ID ),
 		'created'          => get_post_time( 'U', true, $post ),
 		'ready_minutes'    => (int) ( $location['prep_minutes'] ?? 20 ),
 		'payment_url'      => c4u_page_url( 'payment', array( 'order' => $post->ID ) ),
 		'confirmation_url' => c4u_page_url( 'order-confirmed', array( 'order' => $post->ID ) ),
+	);
+}
+
+/**
+ * The cart an order was created from, rebuilt from its saved line items.
+ */
+function c4u_order_cart( $order_id ) {
+	$totals = (array) get_post_meta( $order_id, '_c4u_totals', true );
+	$items  = array();
+	foreach ( $totals['lines'] ?? array() as $line ) {
+		$items[ $line['product_id'] ] = $line['quantity'];
+	}
+	return c4u_normalize_cart(
+		array(
+			'location_id' => (int) get_post_meta( $order_id, '_c4u_location_id', true ),
+			'items'       => $items,
+		)
 	);
 }
 
