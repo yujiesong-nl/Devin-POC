@@ -12,7 +12,8 @@ if ( ! defined( 'ABSPATH' ) ) {
  * Customers always sign in with their e-mail address, so the login name is never shown.
  */
 function c4u_login_name_for( $email ) {
-	if ( strlen( $email ) <= 60 ) {
+	// Characters such as "|" are valid in e-mails but break WordPress auth cookies, so only plain addresses are used as-is.
+	if ( strlen( $email ) <= 60 && sanitize_user( $email, true ) === $email ) {
 		return $email;
 	}
 	$base  = substr( sanitize_user( strstr( $email, '@', true ), true ), 0, 40 );
@@ -23,24 +24,34 @@ function c4u_login_name_for( $email ) {
 	return $login;
 }
 
-function c4u_register_customer( $input ) {
-	$name     = sanitize_text_field( (string) ( $input['name'] ?? '' ) );
-	$phone    = preg_replace( '/[^\d+\-\s()]/', '', (string) ( $input['phone'] ?? '' ) );
-	$email    = sanitize_email( (string) ( $input['email'] ?? '' ) );
-	$password = (string) ( $input['password'] ?? '' );
-	$errors   = array();
-
+/**
+ * Validation shared by sign-up and profile editing; $user_id is the account allowed to keep the e-mail.
+ */
+function c4u_customer_field_errors( $name, $phone, $email, $user_id = 0 ) {
+	$errors = array();
 	if ( strlen( $name ) < 2 ) {
 		$errors['name'] = __( 'Enter your full name.', 'coffee4u' );
 	}
 	if ( strlen( preg_replace( '/\D/', '', $phone ) ) < 7 ) {
 		$errors['phone'] = __( 'Enter a valid phone number.', 'coffee4u' );
 	}
+	$owner = $email ? ( email_exists( $email ) ?: username_exists( $email ) ) : false;
 	if ( ! is_email( $email ) || strlen( $email ) > 100 ) {
 		$errors['email'] = __( 'Enter a valid e-mail address.', 'coffee4u' );
-	} elseif ( email_exists( $email ) || username_exists( $email ) ) {
-		$errors['email'] = __( 'An account with this e-mail already exists. Please sign in.', 'coffee4u' );
+	} elseif ( $owner && (int) $owner !== (int) $user_id ) {
+		$errors['email'] = $user_id
+			? __( 'Another account already uses this e-mail.', 'coffee4u' )
+			: __( 'An account with this e-mail already exists. Please sign in.', 'coffee4u' );
 	}
+	return $errors;
+}
+
+function c4u_register_customer( $input ) {
+	$name     = sanitize_text_field( (string) ( $input['name'] ?? '' ) );
+	$phone    = preg_replace( '/[^\d+\-\s()]/', '', (string) ( $input['phone'] ?? '' ) );
+	$email    = sanitize_email( (string) ( $input['email'] ?? '' ) );
+	$password = (string) ( $input['password'] ?? '' );
+	$errors   = c4u_customer_field_errors( $name, $phone, $email );
 	if ( strlen( $password ) < 8 ) {
 		$errors['password'] = __( 'Use at least 8 characters.', 'coffee4u' );
 	}

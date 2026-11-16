@@ -137,9 +137,10 @@ function c4u_render_site_nav() {
 		$account = '<div class="c4u-account">'
 			. '<button type="button" class="c4u-nav-button" aria-haspopup="true" aria-expanded="false" data-c4u-toggle="account">' . esc_html__( 'My Profile', 'coffee4u' ) . '</button>'
 			. '<div class="c4u-account__menu" hidden>'
-			. '<p class="c4u-account__name">' . esc_html( $user->display_name ) . '</p>'
-			. '<a href="' . esc_url( c4u_page_url( 'my-orders' ) ) . '">' . esc_html__( 'My Orders', 'coffee4u' ) . '</a>'
-			. '<a href="' . esc_url( wp_logout_url( $home ) ) . '">' . esc_html__( 'Log Out', 'coffee4u' ) . '</a>'
+			. '<p class="c4u-account__name" data-c4u-account-name>' . esc_html( $user->display_name ) . '</p>'
+			. '<button type="button" class="c4u-account__item" data-c4u-profile><strong>' . esc_html__( 'Edit Profile', 'coffee4u' ) . '</strong><span>' . esc_html__( 'User Details', 'coffee4u' ) . '</span></button>'
+			. '<a class="c4u-account__item" href="' . esc_url( c4u_page_url( 'my-orders' ) ) . '"><strong>' . esc_html__( 'My Orders', 'coffee4u' ) . '</strong><span>' . esc_html__( 'View previous orders', 'coffee4u' ) . '</span></a>'
+			. '<a class="c4u-account__item" href="' . esc_url( wp_logout_url( $home ) ) . '"><strong>' . esc_html__( 'Log Out', 'coffee4u' ) . '</strong></a>'
 			. '</div></div>';
 	} else {
 		$account = '<button type="button" class="c4u-nav-button" data-c4u-auth="signin">' . esc_html__( 'Sign-in/Register', 'coffee4u' ) . '</button>';
@@ -613,6 +614,41 @@ add_action(
 					<p class="c4u-center c4u-auth__sub"><button type="button" class="c4u-link" data-c4u-auth-view="signin"><?php esc_html_e( 'Already have an account? Sign-in', 'coffee4u' ); ?></button></p>
 				</form>
 			</div>
+		</dialog>
+		<?php
+	}
+);
+
+// "Edit User Profile" frame. The current-password row is shown by JS once the e-mail or password changes.
+add_action(
+	'wp_footer',
+	function () {
+		if ( ! is_user_logged_in() ) {
+			return;
+		}
+		$profile = c4u_profile_view( wp_get_current_user() );
+		$fields  = array(
+			'name'             => array( __( 'Edit Name:', 'coffee4u' ), 'text', 'name', $profile['name'] ),
+			'phone'            => array( __( 'Update Phone No.:', 'coffee4u' ), 'tel', 'tel', $profile['phone'] ),
+			'email'            => array( __( 'Update E-mail:', 'coffee4u' ), 'email', 'email', $profile['email'] ),
+			'password'         => array( __( 'Change Password:', 'coffee4u' ), 'password', 'new-password', '' ),
+			'current_password' => array( __( 'Current Password:', 'coffee4u' ), 'password', 'current-password', '' ),
+		);
+		?>
+		<dialog class="c4u-modal c4u-auth c4u-profile" data-c4u-profile-modal aria-labelledby="c4u-profile-title">
+			<button type="button" class="c4u-modal__close" data-c4u-close aria-label="<?php esc_attr_e( 'Close', 'coffee4u' ); ?>">&times;</button>
+			<h2 class="c4u-profile__title" id="c4u-profile-title"><?php esc_html_e( 'Edit User Details', 'coffee4u' ); ?></h2>
+			<form data-c4u-profile-form data-email="<?php echo esc_attr( $profile['email'] ); ?>" novalidate>
+				<?php foreach ( $fields as $key => $field ) : ?>
+					<div class="c4u-auth__row"<?php echo 'current_password' === $key ? ' data-c4u-current-password hidden' : ''; ?>>
+						<label for="c4u-profile-<?php echo esc_attr( $key ); ?>"><?php echo esc_html( $field[0] ); ?></label>
+						<input id="c4u-profile-<?php echo esc_attr( $key ); ?>" name="<?php echo esc_attr( $key ); ?>" type="<?php echo esc_attr( $field[1] ); ?>" autocomplete="<?php echo esc_attr( $field[2] ); ?>" value="<?php echo esc_attr( $field[3] ); ?>"<?php echo 'password' === $key ? ' placeholder="' . esc_attr__( 'Leave blank to keep your password', 'coffee4u' ) . '"' : ''; ?>>
+						<span class="c4u-field__error" data-error-for="<?php echo esc_attr( $key ); ?>"></span>
+					</div>
+				<?php endforeach; ?>
+				<p class="c4u-form-error" data-c4u-error role="alert"></p>
+				<p class="c4u-center"><button type="submit" class="c4u-button c4u-button--large"><?php esc_html_e( 'Save Changes', 'coffee4u' ); ?></button></p>
+			</form>
 		</dialog>
 		<?php
 	}
