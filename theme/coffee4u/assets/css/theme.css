@@ -522,6 +522,10 @@ a.c4u-order-online:hover, a.c4u-order-online:focus-visible { color: #fff; box-sh
 		background: var(--c4u-espresso);
 		padding: 8px 16px 16px;
 		box-shadow: 0 10px 20px rgba(0, 0, 0, 0.3);
+		max-height: calc(100vh - var(--c4u-header));
+		max-height: calc(100dvh - var(--c4u-header));
+		overflow-y: auto;
+		box-sizing: border-box;
 	}
 	.c4u-nav.is-open .c4u-nav__items { display: flex; }
 	.c4u-nav-button { margin: 8px 0; width: 100%; }
