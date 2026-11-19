@@ -52,7 +52,9 @@ Open http://localhost:8080. Admin: http://localhost:8080/wp-admin (`admin` / `ad
 | PUT | `/cart/items/{product_id}` | Change quantity (0 removes) |
 | POST / DELETE | `/cart/coupon` | Apply / remove a promo code |
 | POST | `/checkout` | Create an order from the cart (signed in) |
-| POST | `/orders/{id}/pay` | Simulated card payment (order owner only) |
+| POST | `/orders/{id}/pay` | Simulated card payment (order owner only): a new card, or `card_id` + `card_cvv` for a saved card |
+| GET / POST | `/account/cards` | List or save the signed-in customer's payment cards (up to 5) |
+| DELETE / POST | `/account/cards/{id}`, `/account/cards/{id}/default` | Remove a saved card or make it the default |
 | POST | `/auth/register`, `/auth/login` | Customer sign-up / sign-in |
 | GET / POST | `/account/profile` | View or edit the signed-in customer's name, phone, e-mail and password |
 | POST | `/groups` | Start a group order (signed-in organizer): size, timer, optional per-person limit |
@@ -64,7 +66,8 @@ Open http://localhost:8080. Admin: http://localhost:8080/wp-admin (`admin` / `ad
 **Security and data**
 - Amounts are integer cents and are always recalculated on the server. Promo rules are checked again at checkout.
 - Guest carts live in a transient keyed by an HttpOnly cookie and are merged into the account on sign-in.
-- The payment step checks the card number (Luhn and brand), expiry and CVV, then throws the card data away. Only the brand, last four digits and a reference are stored.
+- The payment step checks the card number (Luhn and brand), expiry and CVV, then throws the card data away. Only the brand, last four digits and a reference are stored on the order.
+- Saved payment cards are simulated tokens in user meta (`c4u_cards`): a random ID, brand, last four digits, expiry and name on card. The full number and CVV are never stored; paying with a saved card asks for its CVV again. The declined test card can be saved, but paying with it is still declined.
 - Customers can only view or pay for their own orders. REST calls use the core cookie and nonce authentication.
 - Payments are serialised per customer, and a first-order-only promo code is checked again when an order is paid, so it cannot be redeemed on several pending orders.
 - Sign-in (storefront and `wp-login.php`) is locked for 15 minutes after 5 failed attempts for one account or 20 from one IP address.
@@ -75,7 +78,7 @@ Open http://localhost:8080. Admin: http://localhost:8080/wp-admin (`admin` / `ad
 
 Figma file *Coffee4U* (desktop frames, 1024px wide). Colours, type sizes and assets come from the Figma frames through the Figma MCP server. The prototype has no mobile frames, so the mobile layout (hamburger menu, stacked cart, two-column menu grid) was added.
 
-Out of scope for this POC: split payments for group orders, sending invites by SMS or email from the server (links are shared from the device), saved payment cards, a favourite location, and real payment processing.
+Out of scope for this POC: split payments for group orders, sending invites by SMS or email from the server (links are shared from the device), a favourite location, and real payment processing.
 
 ## Layout
 

@@ -49,7 +49,7 @@
 			const message = error && error.fields ? error.fields[ node.dataset.errorFor ] : '';
 			node.textContent = message || '';
 			const input = form.elements[ node.dataset.errorFor ];
-			if ( input ) {
+			if ( input && input.setAttribute ) {
 				input.setAttribute( 'aria-invalid', message ? 'true' : 'false' );
 			}
 		} );
@@ -406,11 +406,10 @@
 		} );
 	}
 
-	/* Payment ---------------------------------------------------------- */
-	const payForm = $( '[data-c4u-pay]' );
-	if ( payForm ) {
-		const card = payForm.elements.card_number;
-		const expiry = payForm.elements.expiry;
+	/* Card fields ------------------------------------------------------ */
+	function formatCardInputs( form ) {
+		const card = form.elements.card_number;
+		const expiry = form.elements.expiry;
 		card.addEventListener( 'input', () => {
 			card.value = card.value.replace( /\D/g, '' ).slice( 0, 19 ).replace( /(\d{4})(?=\d)/g, '$1 ' );
 		} );
@@ -421,9 +420,159 @@
 			}
 			expiry.value = digits;
 		} );
-		payForm.elements.cvv.addEventListener( 'input', ( event ) => {
-			event.target.value = event.target.value.replace( /\D/g, '' ).slice( 0, 4 );
+		$$( '[name="cvv"], [name="card_cvv"]', form ).forEach( ( input ) =>
+			input.addEventListener( 'input', () => ( input.value = input.value.replace( /\D/g, '' ).slice( 0, 4 ) ) )
+		);
+	}
+
+	function cardLogo( brand ) {
+		const logo = document.createElement( 'span' );
+		logo.className = 'c4u-card c4u-card--' + ( { Visa: 'visa', Mastercard: 'mc', 'American Express': 'amex' }[ brand ] || 'visa' );
+		if ( brand === 'Mastercard' ) {
+			logo.append( document.createElement( 'i' ), document.createElement( 'i' ) );
+		} else {
+			logo.textContent = brand === 'Visa' ? 'VISA' : 'AMEX';
+		}
+		return logo;
+	}
+
+	/* Payment cards ---------------------------------------------------- */
+	const cardsModal = $( '[data-c4u-cards-modal]' );
+	if ( cardsModal ) {
+		const listView = $( '[data-c4u-cards-view]', cardsModal );
+		const cardForm = $( '[data-c4u-card-form]', cardsModal );
+		const listError = $( '[data-c4u-error]', listView );
+		formatCardInputs( cardForm );
+
+		const showList = () => {
+			listView.hidden = false;
+			cardForm.hidden = true;
+		};
+
+		const renderCards = ( data ) => {
+			const list = $( '[data-c4u-card-list]', cardsModal );
+			list.textContent = '';
+			data.cards.forEach( ( card ) => {
+				const item = document.createElement( 'li' );
+				item.className = 'c4u-card-list__item' + ( card.expired ? ' is-expired' : '' );
+				const text = document.createElement( 'span' );
+				text.className = 'c4u-card-list__text';
+				const number = document.createElement( 'strong' );
+				number.textContent = card.brand + ' \u2022\u2022\u2022\u2022 ' + card.last4;
+				const meta = document.createElement( 'span' );
+				meta.textContent = ( card.expired ? 'Expired ' : 'Expires ' ) + card.expiry + ' \u00b7 ' + card.name;
+				text.append( number, meta );
+				const actions = document.createElement( 'span' );
+				actions.className = 'c4u-card-list__actions';
+				if ( card.default ) {
+					const tag = document.createElement( 'span' );
+					tag.className = 'c4u-tag';
+					tag.textContent = 'Default';
+					actions.append( tag );
+				} else {
+					const makeDefault = document.createElement( 'button' );
+					makeDefault.type = 'button';
+					makeDefault.className = 'c4u-link';
+					makeDefault.textContent = 'Make default';
+					makeDefault.dataset.c4uCardDefault = card.id;
+					actions.append( makeDefault );
+				}
+				const remove = document.createElement( 'button' );
+				remove.type = 'button';
+				remove.className = 'c4u-link';
+				remove.textContent = 'Remove';
+				remove.dataset.c4uCardRemove = card.id;
+				remove.setAttribute( 'aria-label', 'Remove card ending ' + card.last4 );
+				actions.append( remove );
+				item.append( cardLogo( card.brand ), text, actions );
+				list.append( item );
+			} );
+			$( '[data-c4u-cards-empty]', cardsModal ).hidden = data.cards.length > 0;
+			$( '[data-c4u-add-card]', cardsModal ).hidden = ! data.can_add;
+			$( '[data-c4u-cards-full]', cardsModal ).hidden = data.can_add;
+		};
+
+		const run = async ( request ) => {
+			listError.textContent = '';
+			try {
+				renderCards( await request );
+			} catch ( error ) {
+				listError.textContent = error.message;
+			}
+		};
+
+		document.addEventListener( 'click', ( event ) => {
+			if ( event.target.closest( '[data-c4u-cards]' ) ) {
+				showList();
+				openDialog( cardsModal );
+				run( api( 'account/cards' ) );
+			}
 		} );
+
+		cardsModal.addEventListener( 'click', ( event ) => {
+			const target = event.target.closest( 'button' );
+			if ( ! target ) {
+				return;
+			}
+			if ( target.dataset.c4uCardRemove && window.confirm( 'Remove this card?' ) ) {
+				run( api( 'account/cards/' + target.dataset.c4uCardRemove, { method: 'DELETE' } ) );
+			} else if ( target.dataset.c4uCardDefault ) {
+				run( api( 'account/cards/' + target.dataset.c4uCardDefault + '/default', { method: 'POST' } ) );
+			} else if ( target.matches( '[data-c4u-add-card]' ) ) {
+				cardForm.reset();
+				showErrors( cardForm, null );
+				listView.hidden = true;
+				cardForm.hidden = false;
+				cardForm.elements.card_number.focus();
+			} else if ( target.matches( '[data-c4u-cards-back]' ) ) {
+				showList();
+			}
+		} );
+
+		cardForm.addEventListener( 'submit', async ( event ) => {
+			event.preventDefault();
+			const button = $( '[type="submit"]', cardForm );
+			setBusy( button, true );
+			showErrors( cardForm, null );
+			try {
+				renderCards( await api( 'account/cards', { method: 'POST', body: formData( cardForm ) } ) );
+				cardForm.reset();
+				showList();
+				toast( 'Your card has been saved.' );
+			} catch ( error ) {
+				showErrors( cardForm, error );
+			} finally {
+				setBusy( button, false );
+			}
+		} );
+	}
+
+	/* Payment ---------------------------------------------------------- */
+	const payForm = $( '[data-c4u-pay]' );
+	if ( payForm ) {
+		formatCardInputs( payForm );
+
+		// A saved card needs only its CVV; disabled fields are left out of the request.
+		const newCard = $( '[data-c4u-new-card]', payForm );
+		const savedCvv = $( '[data-c4u-saved-cvv]', payForm );
+		const toggleCard = () => {
+			const choice = $( '[name="card_id"]:checked', payForm );
+			const useSaved = Boolean( choice && choice.value );
+			newCard.hidden = useSaved;
+			$$( 'input', newCard ).forEach( ( input ) => ( input.disabled = useSaved ) );
+			if ( savedCvv ) {
+				savedCvv.hidden = ! useSaved;
+				savedCvv.querySelector( 'input' ).disabled = ! useSaved;
+				savedCvv.querySelector( 'input' ).maxLength = useSaved && choice.dataset.brand === 'American Express' ? 4 : 3;
+			}
+		};
+		$$( '[name="card_id"]', payForm ).forEach( ( radio ) =>
+			radio.addEventListener( 'change', () => {
+				showErrors( payForm, null );
+				toggleCard();
+			} )
+		);
+		toggleCard();
 
 		payForm.addEventListener( 'submit', async ( event ) => {
 			event.preventDefault();
