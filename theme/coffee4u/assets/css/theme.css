@@ -399,6 +399,7 @@ a.c4u-order-online:hover, a.c4u-order-online:focus-visible { color: #fff; box-sh
 .c4u-auth__row input { height: 38px; border: 1px solid transparent; background: #fff; padding: 0 10px; font: inherit; }
 .c4u-auth__row .c4u-field__error { grid-column: 2; }
 .c4u-auth__row[hidden] { display: none; }
+.c4u-button[hidden] { display: none; }
 .c4u-auth input[aria-invalid="true"], .c4u-pay-form input[aria-invalid="true"] { border-color: var(--c4u-error); }
 .c4u-code { color: var(--c4u-honey); text-decoration: underline; }
 
