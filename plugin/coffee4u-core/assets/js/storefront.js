@@ -588,13 +588,14 @@
 			} );
 		};
 
+		// locationId > 0 sets it; < 0 clears it only if -locationId is still the favourite; 0 clears it.
 		const saveFavourite = async ( locationId, button ) => {
 			favError.textContent = '';
 			setBusy( button, true );
 			try {
-				const data = locationId
+				const data = locationId > 0
 					? await api( 'account/favourite-location', { method: 'POST', body: { location_id: locationId } } )
-					: await api( 'account/favourite-location', { method: 'DELETE' } );
+					: await api( 'account/favourite-location' + ( locationId ? '?location_id=' + -locationId : '' ), { method: 'DELETE' } );
 				applyFavourite( data );
 				toast( data.location ? data.location.name + ' is now your favourite location.' : 'Your favourite location has been cleared.' );
 				return true;
@@ -615,7 +616,8 @@
 			const toggle = event.target.closest( '[data-c4u-fav-toggle]' );
 			if ( toggle ) {
 				const pressed = toggle.getAttribute( 'aria-pressed' ) === 'true';
-				if ( ! ( await saveFavourite( pressed ? 0 : Number( toggle.dataset.c4uFavToggle ), toggle ) ) ) {
+				const id = Number( toggle.dataset.c4uFavToggle );
+				if ( ! ( await saveFavourite( pressed ? -id : id, toggle ) ) ) {
 					toast( favError.textContent );
 				}
 			}

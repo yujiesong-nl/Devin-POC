@@ -97,7 +97,21 @@ add_action(
 				array(
 					'methods'             => 'DELETE',
 					'permission_callback' => 'is_user_logged_in',
-					'callback'            => fn() => c4u_set_favourite_location( get_current_user_id(), 0 ),
+					'args'                => array(
+						'location_id' => array(
+							'type'    => 'integer',
+							'minimum' => 1,
+						),
+					),
+					// With location_id, only clear if that location is still the favourite (a stale tab must not erase a newer choice).
+					'callback'            => function ( WP_REST_Request $request ) {
+						$user_id   = get_current_user_id();
+						$favourite = c4u_get_favourite_location( $user_id );
+						if ( $request['location_id'] && ( ! $favourite || $favourite['id'] !== (int) $request['location_id'] ) ) {
+							return c4u_favourite_view( $user_id );
+						}
+						return c4u_set_favourite_location( $user_id, 0 );
+					},
 				),
 			)
 		);
