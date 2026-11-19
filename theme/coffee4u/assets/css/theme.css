@@ -429,12 +429,30 @@ a.c4u-order-online:hover, a.c4u-order-online:focus-visible { color: #fff; box-sh
 .c4u-card--amex { background: #2e77bc; color: #fff; font-style: normal; font-size: 8px; }
 .c4u-field { display: flex; flex-direction: column-reverse; margin: 10px 0; }
 .c4u-field label { font-size: 13px; }
-.c4u-field input { border: 0; border-bottom: 1.5px solid var(--c4u-ink); background: transparent; height: 32px; font: inherit; font-size: 18px; letter-spacing: 0.04em; }
+.c4u-field input { border: 0; min-width: 0; width: 100%; border-bottom: 1.5px solid var(--c4u-ink); background: transparent; height: 32px; font: inherit; font-size: 18px; letter-spacing: 0.04em; }
 .c4u-field input:focus { outline: none; border-bottom-color: var(--c4u-caramel); border-bottom-width: 2px; }
 .c4u-field .c4u-field__error { order: -1; }
-.c4u-field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 48px; }
+.c4u-field-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 48px; }
 .c4u-pay-form__submit { display: flex; align-items: center; justify-content: center; gap: 16px; margin-top: 16px; }
 .c4u-shield { width: 40px; height: 40px; color: #2d3fbf; }
+.c4u-saved-cards { border: 0; padding: 0; margin: 16px 0 8px; }
+.c4u-saved-cards legend { font-size: 16px; font-weight: 700; margin-bottom: 8px; }
+.c4u-saved-card { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 10px; padding: 10px 12px; margin-bottom: 8px; background: rgba(255, 255, 255, 0.7); border: 1.5px solid transparent; border-radius: 8px; cursor: pointer; }
+.c4u-saved-card:has(input:checked) { border-color: var(--c4u-caramel); background: #fff; }
+.c4u-saved-card.is-expired { opacity: 0.55; cursor: not-allowed; }
+.c4u-saved-card__number { font-weight: 700; letter-spacing: 0.04em; }
+.c4u-saved-card__meta { font-size: 14px; color: var(--c4u-honey); }
+.c4u-check { display: flex; align-items: center; gap: 8px; margin: 12px 0 0; font-size: 15px; cursor: pointer; }
+[data-c4u-new-card][hidden], [data-c4u-saved-cvv][hidden] { display: none; }
+.c4u-cards-modal { width: min(593px, calc(100% - 32px)); padding: 16px 16px 14px; }
+.c4u-card-list { list-style: none; margin: 0 0 12px; padding: 0; }
+.c4u-card-list__item { display: flex; align-items: center; gap: 12px; padding: 10px 12px; margin-bottom: 8px; background: #fff; box-shadow: 0 3px 4px rgba(62, 31, 2, 0.2); }
+.c4u-card-list__item.is-expired .c4u-card-list__text { opacity: 0.55; }
+.c4u-card-list__text { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+.c4u-card-list__text span { font-size: 14px; color: var(--c4u-honey); overflow-wrap: anywhere; }
+.c4u-card-list__actions { display: flex; align-items: center; gap: 12px; font-size: 14px; }
+.c4u-card-form__brands { text-align: right; }
+.c4u-card-form .c4u-test-hint { margin-top: 8px; }
 .c4u-test-hint { font-size: 13px; text-align: center; background: rgba(255, 255, 255, 0.7); padding: 8px 12px; border-radius: 8px; margin-top: 20px; }
 
 /* Confirmation ------------------------------------------------------- */
@@ -510,4 +528,6 @@ a.c4u-order-online:hover, a.c4u-order-online:focus-visible { color: #fff; box-sh
 	.c4u-group-table th { font-size: 17px; }
 	.c4u-group-table td, .c4u-group-table tfoot th { font-size: 14px; padding: 4px; }
 	.c4u-group-notice { flex-direction: column; text-align: center; }
+	.c4u-card-list__item { flex-wrap: wrap; }
+	.c4u-card-list__actions { width: 100%; justify-content: flex-end; }
 }

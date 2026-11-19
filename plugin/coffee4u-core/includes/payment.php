@@ -1,6 +1,7 @@
 <?php
 /**
- * Simulated card gateway. Card data is validated and discarded; only brand and last four digits are stored.
+ * Simulated card gateway. The full card number and CVV are validated and discarded; orders keep the brand and
+ * last four digits, and saved cards (cards.php) also keep the expiry and name on card.
  * Test cards: any Luhn-valid number succeeds (e.g. 4242 4242 4242 4242); 4000 0000 0000 0002 is declined.
  */
 
@@ -36,6 +37,53 @@ function c4u_card_brand( $number ) {
 		return 'Visa';
 	}
 	return '';
+}
+
+const C4U_DECLINED_CARD = '4000000000000002';
+
+function c4u_card_expired( $month, $year ) {
+	return gmmktime( 0, 0, 0, (int) $month + 1, 1, (int) $year ) <= time();
+}
+
+function c4u_cvv_valid( $cvv, $brand ) {
+	return strlen( $cvv ) === ( 'American Express' === $brand ? 4 : 3 );
+}
+
+/**
+ * Validates a new card from card_number, expiry, cvv and name. Returns array( $card, $errors ).
+ */
+function c4u_parse_card( $input ) {
+	$number = preg_replace( '/\D/', '', (string) ( $input['card_number'] ?? '' ) );
+	$expiry = preg_replace( '/\s/', '', (string) ( $input['expiry'] ?? '' ) );
+	$cvv    = preg_replace( '/\D/', '', (string) ( $input['cvv'] ?? '' ) );
+	$name   = sanitize_text_field( (string) ( $input['name'] ?? '' ) );
+	$brand  = c4u_card_brand( $number );
+	$errors = array();
+
+	if ( strlen( $number ) < 13 || strlen( $number ) > 19 || ! c4u_luhn_valid( $number ) || ! $brand ) {
+		$errors['card_number'] = __( 'Enter a valid Visa, Mastercard or American Express card number.', 'coffee4u' );
+	}
+	if ( ! preg_match( '#^(0[1-9]|1[0-2])/(\d{2})$#', $expiry, $m ) || c4u_card_expired( $m[1], 2000 + (int) $m[2] ) ) {
+		$errors['expiry'] = __( 'Enter a future expiry date as MM/YY.', 'coffee4u' );
+	}
+	if ( ! c4u_cvv_valid( $cvv, $brand ) ) {
+		$errors['cvv'] = __( 'Enter the security code on your card.', 'coffee4u' );
+	}
+	if ( strlen( $name ) < 2 ) {
+		$errors['name'] = __( 'Enter the name shown on the card.', 'coffee4u' );
+	}
+	if ( $errors ) {
+		return array( null, $errors );
+	}
+	$card = array(
+		'brand'     => $brand,
+		'last4'     => substr( $number, -4 ),
+		'exp_month' => (int) $m[1],
+		'exp_year'  => 2000 + (int) $m[2],
+		'name'      => $name,
+		'declines'  => C4U_DECLINED_CARD === $number,
+	);
+	return array( $card, array() );
 }
 
 /**
@@ -76,25 +124,21 @@ function c4u_charge_order( $order, $input ) {
 		return $payable;
 	}
 
-	$number = preg_replace( '/\D/', '', (string) ( $input['card_number'] ?? '' ) );
-	$expiry = preg_replace( '/\s/', '', (string) ( $input['expiry'] ?? '' ) );
-	$cvv    = preg_replace( '/\D/', '', (string) ( $input['cvv'] ?? '' ) );
-	$name   = sanitize_text_field( (string) ( $input['name'] ?? '' ) );
-	$phone  = preg_replace( '/[^\d+]/', '', (string) ( $input['phone'] ?? '' ) );
-	$brand  = c4u_card_brand( $number );
-	$errors = array();
-
-	if ( strlen( $number ) < 13 || strlen( $number ) > 19 || ! c4u_luhn_valid( $number ) || ! $brand ) {
-		$errors['card_number'] = __( 'Enter a valid Visa, Mastercard or American Express card number.', 'coffee4u' );
-	}
-	if ( ! preg_match( '#^(0[1-9]|1[0-2])/(\d{2})$#', $expiry, $m ) || gmmktime( 0, 0, 0, (int) $m[1] + 1, 1, 2000 + (int) $m[2] ) <= time() ) {
-		$errors['expiry'] = __( 'Enter a future expiry date as MM/YY.', 'coffee4u' );
-	}
-	if ( strlen( $cvv ) !== ( 'American Express' === $brand ? 4 : 3 ) ) {
-		$errors['cvv'] = __( 'Enter the security code on your card.', 'coffee4u' );
-	}
-	if ( strlen( $name ) < 2 ) {
-		$errors['name'] = __( 'Enter the name shown on the card.', 'coffee4u' );
+	$phone   = preg_replace( '/[^\d+]/', '', (string) ( $input['phone'] ?? '' ) );
+	$card_id = sanitize_key( (string) ( $input['card_id'] ?? '' ) );
+	if ( '' !== $card_id ) {
+		$card   = c4u_find_card( $order['user_id'], $card_id );
+		$cvv    = preg_replace( '/\D/', '', (string) ( $input['card_cvv'] ?? '' ) );
+		$errors = array();
+		if ( ! $card ) {
+			$errors['card_id'] = __( 'Choose one of your saved cards or use a new card.', 'coffee4u' );
+		} elseif ( c4u_card_expired( $card['exp_month'], $card['exp_year'] ) ) {
+			$errors['card_id'] = __( 'This card has expired. Choose another card.', 'coffee4u' );
+		} elseif ( ! c4u_cvv_valid( $cvv, $card['brand'] ) ) {
+			$errors['card_cvv'] = __( 'Enter the security code on your card.', 'coffee4u' );
+		}
+	} else {
+		list( $card, $errors ) = c4u_parse_card( $input );
 	}
 	if ( strlen( ltrim( $phone, '+' ) ) < 7 ) {
 		$errors['phone'] = __( 'Enter a contact number.', 'coffee4u' );
@@ -109,7 +153,7 @@ function c4u_charge_order( $order, $input ) {
 			)
 		);
 	}
-	if ( '4000000000000002' === $number ) {
+	if ( $card['declines'] ) {
 		return new WP_Error( 'c4u_payment_declined', __( 'Your card was declined. Please use a different card.', 'coffee4u' ), array( 'status' => 402 ) );
 	}
 
@@ -117,15 +161,19 @@ function c4u_charge_order( $order, $input ) {
 		$order['id'],
 		'_c4u_payment',
 		array(
-			'brand'     => $brand,
-			'last4'     => substr( $number, -4 ),
+			'brand'     => $card['brand'],
+			'last4'     => $card['last4'],
 			'reference' => 'SIM-' . strtoupper( wp_generate_password( 10, false ) ),
-			'name'      => $name,
+			'name'      => $card['name'],
 			'phone'     => $phone,
 			'paid_at'   => time(),
 		)
 	);
 	update_post_meta( $order['id'], '_c4u_status', 'paid' );
+	if ( '' === $card_id && ! empty( $input['save_card'] ) ) {
+		// Best effort: a card that is already saved, or a full card list, does not fail the payment.
+		c4u_store_card( $order['user_id'], $card );
+	}
 
 	// Only clear the cart this order was created from; a cart changed since then is kept.
 	$cart = c4u_get_cart( $order['user_id'] );

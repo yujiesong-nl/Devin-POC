@@ -139,6 +139,7 @@ function c4u_render_site_nav() {
 			. '<div class="c4u-account__menu" hidden>'
 			. '<p class="c4u-account__name" data-c4u-account-name>' . esc_html( $user->display_name ) . '</p>'
 			. '<button type="button" class="c4u-account__item" data-c4u-profile><strong>' . esc_html__( 'Edit Profile', 'coffee4u' ) . '</strong><span>' . esc_html__( 'User Details', 'coffee4u' ) . '</span></button>'
+			. '<button type="button" class="c4u-account__item" data-c4u-cards><strong>' . esc_html__( 'Payment Cards', 'coffee4u' ) . '</strong><span>' . esc_html__( 'Manage Cards', 'coffee4u' ) . '</span></button>'
 			. '<a class="c4u-account__item" href="' . esc_url( c4u_page_url( 'my-orders' ) ) . '"><strong>' . esc_html__( 'My Orders', 'coffee4u' ) . '</strong><span>' . esc_html__( 'View previous orders', 'coffee4u' ) . '</span></a>'
 			. '<a class="c4u-account__item" href="' . esc_url( wp_logout_url( $home ) ) . '"><strong>' . esc_html__( 'Log Out', 'coffee4u' ) . '</strong></a>'
 			. '</div></div>';
@@ -338,6 +339,39 @@ function c4u_render_checkout() {
 	return $out . ob_get_clean() . '</section>';
 }
 
+function c4u_card_logo( $brand ) {
+	$logos = array(
+		'Visa'             => '<span class="c4u-card c4u-card--visa">VISA</span>',
+		'Mastercard'       => '<span class="c4u-card c4u-card--mc"><i></i><i></i></span>',
+		'American Express' => '<span class="c4u-card c4u-card--amex">AMEX</span>',
+	);
+	return $logos[ $brand ] ?? '';
+}
+
+function c4u_accepted_cards() {
+	return '<span class="c4u-cards" aria-label="' . esc_attr__( 'Accepted cards: Visa, Mastercard, American Express', 'coffee4u' ) . '">'
+		. c4u_card_logo( 'Visa' ) . c4u_card_logo( 'Mastercard' ) . c4u_card_logo( 'American Express' ) . '</span>';
+}
+
+/** Saved cards as radio options; the first usable card is selected. */
+function c4u_saved_card_options( $cards ) {
+	$out     = '<fieldset class="c4u-saved-cards"><legend>' . esc_html__( 'Pay with a Saved Card', 'coffee4u' ) . '</legend>';
+	$checked = false;
+	foreach ( $cards as $card ) {
+		$select = ! $checked && ! $card['expired'];
+		$checked = $checked || $select;
+		$out    .= '<label class="c4u-saved-card' . ( $card['expired'] ? ' is-expired' : '' ) . '">'
+			. '<input type="radio" name="card_id" value="' . esc_attr( $card['id'] ) . '" data-brand="' . esc_attr( $card['brand'] ) . '"' . checked( $select, true, false ) . disabled( $card['expired'], true, false ) . '>'
+			. c4u_card_logo( $card['brand'] )
+			. '<span class="c4u-saved-card__number">&bull;&bull;&bull;&bull; ' . esc_html( $card['last4'] ) . '</span>'
+			. '<span class="c4u-saved-card__meta">' . esc_html( $card['expired'] ? __( 'Expired', 'coffee4u' ) . ' ' . $card['expiry'] : __( 'Expires', 'coffee4u' ) . ' ' . $card['expiry'] ) . ' &middot; ' . esc_html( $card['name'] ) . '</span>'
+			. '</label>';
+	}
+	$out .= '<label class="c4u-saved-card"><input type="radio" name="card_id" value=""' . checked( $checked, false, false ) . '><span class="c4u-saved-card__number">' . esc_html__( 'Use a new card', 'coffee4u' ) . '</span></label>'
+		. '<span class="c4u-field__error" data-error-for="card_id"></span></fieldset>';
+	return $out;
+}
+
 function c4u_render_payment() {
 	$out = '<section class="c4u-page c4u-payment">';
 	if ( ! is_user_logged_in() ) {
@@ -357,27 +391,37 @@ function c4u_render_payment() {
 	}
 	$user  = wp_get_current_user();
 	$phone = get_user_meta( $user->ID, 'c4u_phone', true );
+	$saved = c4u_cards_view( $user->ID );
 	ob_start();
 	?>
 	<form class="c4u-pay-form" data-c4u-pay="<?php echo esc_attr( $order['id'] ); ?>" novalidate>
 		<div class="c4u-summary__total"><span><?php esc_html_e( 'Total Amount Payable', 'coffee4u' ); ?></span><strong><?php echo esc_html( c4u_format_money( $order['totals']['total'] ) ); ?></strong></div>
 		<div class="c4u-pay-form__head">
 			<h2><?php esc_html_e( 'Enter Payment Details', 'coffee4u' ); ?></h2>
-			<span class="c4u-cards" aria-label="<?php esc_attr_e( 'Accepted cards: Visa, Mastercard, American Express', 'coffee4u' ); ?>"><span class="c4u-card c4u-card--visa">VISA</span><span class="c4u-card c4u-card--mc"><i></i><i></i></span><span class="c4u-card c4u-card--amex">AMEX</span></span>
+			<?php echo c4u_accepted_cards(); // phpcs:ignore WordPress.Security.EscapeOutput -- escaped markup. ?>
 		</div>
+		<?php if ( $saved['cards'] ) : ?>
+			<?php echo c4u_saved_card_options( $saved['cards'] ); // phpcs:ignore WordPress.Security.EscapeOutput -- escaped markup. ?>
+			<div class="c4u-field" data-c4u-saved-cvv><input id="c4u-card-cvv" name="card_cvv" inputmode="numeric" autocomplete="cc-csc" maxlength="4" placeholder="&#8226;&#8226;&#8226;" required><label for="c4u-card-cvv"><?php esc_html_e( 'CVV of the Saved Card', 'coffee4u' ); ?></label><span class="c4u-field__error" data-error-for="card_cvv"></span></div>
+		<?php endif; ?>
+		<div data-c4u-new-card>
 		<div class="c4u-field c4u-field--full"><input id="c4u-card" name="card_number" inputmode="numeric" autocomplete="cc-number" maxlength="23" placeholder="&#8226;&#8226;&#8226;&#8226; &#8226;&#8226;&#8226;&#8226; &#8226;&#8226;&#8226;&#8226; &#8226;&#8226;&#8226;&#8226;" required><label for="c4u-card"><?php esc_html_e( 'Card Number', 'coffee4u' ); ?></label><span class="c4u-field__error" data-error-for="card_number"></span></div>
 		<div class="c4u-field-row">
 			<div class="c4u-field"><input id="c4u-exp" name="expiry" inputmode="numeric" autocomplete="cc-exp" maxlength="5" placeholder="MM/YY" required><label for="c4u-exp"><?php esc_html_e( 'Validity Details', 'coffee4u' ); ?></label><span class="c4u-field__error" data-error-for="expiry"></span></div>
 			<div class="c4u-field"><input id="c4u-cvv" name="cvv" inputmode="numeric" autocomplete="cc-csc" maxlength="4" placeholder="&#8226;&#8226;&#8226;" required><label for="c4u-cvv"><?php esc_html_e( 'CVV', 'coffee4u' ); ?></label><span class="c4u-field__error" data-error-for="cvv"></span></div>
 		</div>
 		<div class="c4u-field c4u-field--full"><input id="c4u-name" name="name" autocomplete="cc-name" value="<?php echo esc_attr( $user->display_name ); ?>" required><label for="c4u-name"><?php esc_html_e( 'Name on Card', 'coffee4u' ); ?></label><span class="c4u-field__error" data-error-for="name"></span></div>
+			<?php if ( $saved['can_add'] ) : ?>
+				<label class="c4u-check"><input type="checkbox" name="save_card" value="1"> <?php esc_html_e( 'Save this card for next time', 'coffee4u' ); ?></label>
+			<?php endif; ?>
+		</div>
 		<div class="c4u-field c4u-field--full"><input id="c4u-phone" name="phone" type="tel" autocomplete="tel" value="<?php echo esc_attr( $phone ); ?>" required><label for="c4u-phone"><?php esc_html_e( 'Contact Number', 'coffee4u' ); ?></label><span class="c4u-field__error" data-error-for="phone"></span></div>
 		<p class="c4u-form-error" data-c4u-error role="alert"></p>
 		<div class="c4u-pay-form__submit">
 			<button type="submit" class="c4u-button c4u-button--large"><?php esc_html_e( 'Secure Payment', 'coffee4u' ); ?></button>
 			<svg class="c4u-shield" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2 4 5v6c0 5 3.4 9.7 8 11 4.6-1.3 8-6 8-11V5z" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M8 9h8M8 12h8M8 15h5" stroke="currentColor" stroke-width="1.8"/></svg>
 		</div>
-		<p class="c4u-test-hint"><?php esc_html_e( 'Demo payment: no money is charged and card details are never stored. Use 4242 4242 4242 4242 with any future expiry and CVV. 4000 0000 0000 0002 simulates a declined card.', 'coffee4u' ); ?></p>
+		<p class="c4u-test-hint"><?php esc_html_e( 'Demo payment: no money is charged, and the full card number and CVV are never stored. Use 4242 4242 4242 4242 with any future expiry and CVV. 4000 0000 0000 0002 simulates a declined card.', 'coffee4u' ); ?></p>
 	</form>
 	<?php
 	return $out . ob_get_clean() . '</section>';
@@ -648,6 +692,43 @@ add_action(
 				<?php endforeach; ?>
 				<p class="c4u-form-error" data-c4u-error role="alert"></p>
 				<p class="c4u-center"><button type="submit" class="c4u-button c4u-button--large"><?php esc_html_e( 'Save Changes', 'coffee4u' ); ?></button></p>
+			</form>
+		</dialog>
+		<?php
+	}
+);
+
+// Payment Cards: the saved-card list, and the "Save Payment Card" frame for adding one.
+add_action(
+	'wp_footer',
+	function () {
+		if ( ! is_user_logged_in() ) {
+			return;
+		}
+		?>
+		<dialog class="c4u-modal c4u-cards-modal" data-c4u-cards-modal aria-labelledby="c4u-cards-title">
+			<button type="button" class="c4u-modal__close" data-c4u-close aria-label="<?php esc_attr_e( 'Close', 'coffee4u' ); ?>">&times;</button>
+			<div data-c4u-cards-view>
+				<h2 class="c4u-profile__title" id="c4u-cards-title"><?php esc_html_e( 'Payment Cards', 'coffee4u' ); ?></h2>
+				<ul class="c4u-card-list" data-c4u-card-list></ul>
+				<p class="c4u-center" data-c4u-cards-empty hidden><?php esc_html_e( 'You have no saved cards yet.', 'coffee4u' ); ?></p>
+				<p class="c4u-form-error" data-c4u-error role="alert"></p>
+				<p class="c4u-center"><button type="button" class="c4u-button c4u-button--large" data-c4u-add-card><?php esc_html_e( 'Add Card', 'coffee4u' ); ?></button></p>
+				<p class="c4u-center" data-c4u-cards-full hidden><?php esc_html_e( 'You can save up to 5 cards. Remove one to add another.', 'coffee4u' ); ?></p>
+			</div>
+			<form class="c4u-card-form" data-c4u-card-form hidden novalidate>
+				<h2 class="c4u-profile__title"><?php esc_html_e( 'Save Payment Card', 'coffee4u' ); ?></h2>
+				<div class="c4u-card-form__brands"><?php echo c4u_accepted_cards(); // phpcs:ignore WordPress.Security.EscapeOutput -- escaped markup. ?></div>
+				<div class="c4u-field c4u-field--full"><input id="c4u-new-card" name="card_number" inputmode="numeric" autocomplete="cc-number" maxlength="23" placeholder="&#8226;&#8226;&#8226;&#8226; &#8226;&#8226;&#8226;&#8226; &#8226;&#8226;&#8226;&#8226; &#8226;&#8226;&#8226;&#8226;" required><label for="c4u-new-card"><?php esc_html_e( 'Card Number', 'coffee4u' ); ?></label><span class="c4u-field__error" data-error-for="card_number"></span></div>
+				<div class="c4u-field-row">
+					<div class="c4u-field"><input id="c4u-new-exp" name="expiry" inputmode="numeric" autocomplete="cc-exp" maxlength="5" placeholder="MM/YY" required><label for="c4u-new-exp"><?php esc_html_e( 'Validity Details', 'coffee4u' ); ?></label><span class="c4u-field__error" data-error-for="expiry"></span></div>
+					<div class="c4u-field"><input id="c4u-new-cvv" name="cvv" inputmode="numeric" autocomplete="cc-csc" maxlength="4" placeholder="&#8226;&#8226;&#8226;" required><label for="c4u-new-cvv"><?php esc_html_e( 'CVV', 'coffee4u' ); ?></label><span class="c4u-field__error" data-error-for="cvv"></span></div>
+				</div>
+				<div class="c4u-field c4u-field--full"><input id="c4u-new-name" name="name" autocomplete="cc-name" required><label for="c4u-new-name"><?php esc_html_e( 'Name on Card', 'coffee4u' ); ?></label><span class="c4u-field__error" data-error-for="name"></span></div>
+				<p class="c4u-form-error" data-c4u-error role="alert"></p>
+				<p class="c4u-center"><button type="submit" class="c4u-button c4u-button--large"><?php esc_html_e( 'Save Card', 'coffee4u' ); ?></button></p>
+				<p class="c4u-center"><button type="button" class="c4u-link" data-c4u-cards-back><?php esc_html_e( 'Back to saved cards', 'coffee4u' ); ?></button></p>
+				<p class="c4u-test-hint"><?php esc_html_e( 'Only the card brand, last four digits, expiry and name are kept. The full number and CVV are never stored, and the CVV is asked again at payment.', 'coffee4u' ); ?></p>
 			</form>
 		</dialog>
 		<?php
