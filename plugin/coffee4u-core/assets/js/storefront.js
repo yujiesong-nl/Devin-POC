@@ -597,7 +597,11 @@
 					? await api( 'account/favourite-location', { method: 'POST', body: { location_id: locationId } } )
 					: await api( 'account/favourite-location', { method: 'DELETE', body: locationId ? { location_id: -locationId } : undefined } );
 				applyFavourite( data );
-				toast( data.location ? data.location.name + ' is now your favourite location.' : 'Your favourite location has been cleared.' );
+				if ( locationId < 0 && data.location ) {
+					toast( 'Your favourite location is now ' + data.location.name + ', so nothing was removed.' );
+				} else {
+					toast( data.location ? data.location.name + ' is now your favourite location.' : 'Your favourite location has been cleared.' );
+				}
 				return true;
 			} catch ( error ) {
 				favError.textContent = error.message;
