@@ -51,14 +51,9 @@ function c4u_favourite_view( $user_id ) {
 	);
 }
 
-/** Sets the favourite, or clears it when $location_id is 0. */
 function c4u_set_favourite_location( $user_id, $location_id ) {
 	$location_id = (int) $location_id;
-	if ( ! $location_id ) {
-		delete_user_meta( $user_id, 'c4u_favourite_location' );
-		return c4u_favourite_view( $user_id );
-	}
-	$location = c4u_get_location( $location_id );
+	$location    = $location_id ? c4u_get_location( $location_id ) : null;
 	if ( ! $location ) {
 		return new WP_Error( 'c4u_location_not_found', __( 'Location not found.', 'coffee4u' ), array( 'status' => 404 ) );
 	}
@@ -103,14 +98,11 @@ add_action(
 							'minimum' => 1,
 						),
 					),
-					// With location_id, only clear if that location is still the favourite (a stale tab must not erase a newer choice).
+					// With location_id, only that stored ID is removed, so a stale tab cannot erase a newer choice.
 					'callback'            => function ( WP_REST_Request $request ) {
-						$user_id   = get_current_user_id();
-						$favourite = c4u_get_favourite_location( $user_id );
-						if ( $request['location_id'] && ( ! $favourite || $favourite['id'] !== (int) $request['location_id'] ) ) {
-							return c4u_favourite_view( $user_id );
-						}
-						return c4u_set_favourite_location( $user_id, 0 );
+						$user_id = get_current_user_id();
+						delete_user_meta( $user_id, 'c4u_favourite_location', $request['location_id'] ? (int) $request['location_id'] : '' );
+						return c4u_favourite_view( $user_id );
 					},
 				),
 			)

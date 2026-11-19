@@ -595,7 +595,7 @@
 			try {
 				const data = locationId > 0
 					? await api( 'account/favourite-location', { method: 'POST', body: { location_id: locationId } } )
-					: await api( 'account/favourite-location' + ( locationId ? '?location_id=' + -locationId : '' ), { method: 'DELETE' } );
+					: await api( 'account/favourite-location', { method: 'DELETE', body: locationId ? { location_id: -locationId } : undefined } );
 				applyFavourite( data );
 				toast( data.location ? data.location.name + ' is now your favourite location.' : 'Your favourite location has been cleared.' );
 				return true;
