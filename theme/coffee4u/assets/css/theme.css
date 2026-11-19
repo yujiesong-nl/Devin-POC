@@ -104,6 +104,43 @@ body::before {
 .c4u-account__item strong { font-size: 18px; color: var(--c4u-roast); }
 .c4u-account__item span { font-size: 14px; color: var(--c4u-ink); }
 .c4u-account__item:hover, .c4u-account__item:focus-visible { background: #efdcc2; }
+.c4u-account__fav { position: relative; margin: 0 0 12px; }
+.c4u-account__fav .c4u-account__item { margin: 0; }
+.c4u-account__fav-name { display: none; }
+/* Figma "Frame 29": the favourite's name in a cream box beside the menu item. */
+.c4u-account__flyout {
+	display: none;
+	position: absolute;
+	top: 0;
+	left: calc(100% + 18px);
+	width: 218px;
+	min-height: 54px;
+	align-items: center;
+	justify-content: center;
+	padding: 4px 8px;
+	box-sizing: border-box;
+	background: #f6f0e6;
+	box-shadow: 0 3px 4px rgba(62, 31, 2, 0.3);
+	color: #604614;
+	font-size: 18px;
+	font-weight: 700;
+	text-align: center;
+	text-decoration: none;
+}
+.c4u-account__flyout::before { content: ""; position: absolute; top: 0; bottom: 0; right: 100%; width: 18px; }
+a.c4u-account__flyout[href]:hover, a.c4u-account__flyout[href]:focus-visible { background: #efdcc2; text-decoration: underline; }
+.c4u-account__fav:hover .c4u-account__flyout, .c4u-account__fav:focus-within .c4u-account__flyout { display: flex; }
+.c4u-fav-modal { width: min(593px, calc(100% - 32px)); padding: 16px 16px 14px; }
+.c4u-fav-list { justify-content: center; margin: 16px 0; }
+.c4u-fav-list .c4u-location-button { font: inherit; font-size: 20px; border: 0; cursor: pointer; }
+.c4u-fav-list .c4u-location-button:hover:not(:disabled), .c4u-fav-list .c4u-location-button:focus-visible { background: var(--c4u-roast); }
+.c4u-fav-list .c4u-location-button:disabled { background: rgba(62, 31, 2, 0.6); cursor: default; }
+.c4u-fav-list .c4u-location-button[aria-pressed="true"] { background: var(--c4u-roast); box-shadow: 0 0 0 4px var(--c4u-caramel); }
+.c4u-fav-list .c4u-location-button[aria-pressed="true"]::before { content: "\2605\00a0"; color: var(--c4u-caramel); }
+.c4u-fav-tag { color: var(--c4u-espresso); font-weight: 700; font-size: 14px; }
+.c4u-fav-toggle { display: block; margin: 6px auto 10px; padding: 6px 16px; border: 2px solid var(--c4u-espresso); border-radius: 999px; background: #fff; color: var(--c4u-espresso); font: inherit; font-size: 16px; font-weight: 700; cursor: pointer; }
+.c4u-fav-toggle:hover, .c4u-fav-toggle:focus-visible { background: var(--c4u-cream); }
+.c4u-fav-toggle[aria-pressed="true"] { background: var(--c4u-espresso); color: #fff; }
 .c4u-profile { width: min(587px, calc(100% - 32px)); padding: 16px 10px 14px; }
 .c4u-profile__title { margin: 0 0 20px; padding: 10px 40px; background: rgba(246, 234, 219, 0.6); font-size: 24px; text-align: center; color: var(--c4u-ink); }
 .c4u-profile .c4u-auth__row { grid-template-columns: 170px 1fr; }
@@ -489,6 +526,8 @@ a.c4u-order-online:hover, a.c4u-order-online:focus-visible { color: #fff; box-sh
 	.c4u-nav.is-open .c4u-nav__items { display: flex; }
 	.c4u-nav-button { margin: 8px 0; width: 100%; }
 	.c4u-account__menu { position: static; width: auto; box-shadow: none; margin-bottom: 8px; }
+	.c4u-account__flyout, .c4u-account__fav:hover .c4u-account__flyout, .c4u-account__fav:focus-within .c4u-account__flyout { display: none; }
+	.c4u-account__fav-name { display: block; }
 	.c4u-menu__layout { grid-template-columns: 1fr; }
 	.c4u-cart { position: static; order: -1; }
 	.c4u-group-status { grid-template-columns: 1fr; gap: 24px; }

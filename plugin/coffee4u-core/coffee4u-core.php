@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Coffee4U Core
  * Description: Menu, cart, promo codes, checkout, simulated payment and customer accounts for the Coffee4U ordering POC. No third-party dependencies.
- * Version: 1.3.0
+ * Version: 1.4.0
  * Requires at least: 6.5
  * Requires PHP: 8.1
  * Author: Coffee4U POC
@@ -14,7 +14,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'C4U_VERSION', '1.3.0' );
+define( 'C4U_VERSION', '1.4.0' );
 define( 'C4U_FILE', __FILE__ );
 define( 'C4U_DIR', plugin_dir_path( __FILE__ ) );
 define( 'C4U_URL', plugin_dir_url( __FILE__ ) );
@@ -30,6 +30,7 @@ require_once C4U_DIR . 'includes/groups.php';
 require_once C4U_DIR . 'includes/auth.php';
 require_once C4U_DIR . 'includes/account.php';
 require_once C4U_DIR . 'includes/cards.php';
+require_once C4U_DIR . 'includes/favourites.php';
 require_once C4U_DIR . 'includes/rest.php';
 require_once C4U_DIR . 'includes/blocks.php';
 

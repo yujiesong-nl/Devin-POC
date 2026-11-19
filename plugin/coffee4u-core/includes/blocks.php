@@ -133,13 +133,19 @@ function c4u_render_site_nav() {
 		. '<a href="' . esc_url( $home . '#contact' ) . '">' . esc_html__( 'Contact Us', 'coffee4u' ) . '</a>';
 
 	if ( is_user_logged_in() ) {
-		$user    = wp_get_current_user();
-		$account = '<div class="c4u-account">'
+		$user      = wp_get_current_user();
+		$favourite = c4u_get_favourite_location( $user->ID );
+		$fav_name  = $favourite ? $favourite['name'] : __( 'Not set', 'coffee4u' );
+		$account   = '<div class="c4u-account">'
 			. '<button type="button" class="c4u-nav-button" aria-haspopup="true" aria-expanded="false" data-c4u-toggle="account">' . esc_html__( 'My Profile', 'coffee4u' ) . '</button>'
 			. '<div class="c4u-account__menu" hidden>'
 			. '<p class="c4u-account__name" data-c4u-account-name>' . esc_html( $user->display_name ) . '</p>'
 			. '<button type="button" class="c4u-account__item" data-c4u-profile><strong>' . esc_html__( 'Edit Profile', 'coffee4u' ) . '</strong><span>' . esc_html__( 'User Details', 'coffee4u' ) . '</span></button>'
 			. '<button type="button" class="c4u-account__item" data-c4u-cards><strong>' . esc_html__( 'Payment Cards', 'coffee4u' ) . '</strong><span>' . esc_html__( 'Manage Cards', 'coffee4u' ) . '</span></button>'
+			. '<div class="c4u-account__fav">'
+			. '<button type="button" class="c4u-account__item" data-c4u-favourite><strong>' . esc_html__( 'Favourite Location', 'coffee4u' ) . '</strong><span class="c4u-account__fav-name" data-c4u-fav-name>' . esc_html( $fav_name ) . '</span></button>'
+			. '<a class="c4u-account__flyout" data-c4u-fav-link' . ( $favourite ? ' href="' . esc_url( $favourite['menu_url'] ) . '"' : '' ) . '>' . esc_html( $fav_name ) . '</a>'
+			. '</div>'
 			. '<a class="c4u-account__item" href="' . esc_url( c4u_page_url( 'my-orders' ) ) . '"><strong>' . esc_html__( 'My Orders', 'coffee4u' ) . '</strong><span>' . esc_html__( 'View previous orders', 'coffee4u' ) . '</span></a>'
 			. '<a class="c4u-account__item" href="' . esc_url( wp_logout_url( $home ) ) . '"><strong>' . esc_html__( 'Log Out', 'coffee4u' ) . '</strong></a>'
 			. '</div></div>';
@@ -152,27 +158,37 @@ function c4u_render_site_nav() {
 		. '<div class="c4u-nav__items">' . $account . $links . '</div></nav>';
 }
 
+/** Cafe location buttons; the signed-in customer's favourite goes first and is tagged. */
 function c4u_render_location_list() {
-	$posts = get_posts(
-		array(
-			'post_type'      => 'c4u_location',
-			'posts_per_page' => -1,
-			'orderby'        => array(
-				'menu_order' => 'ASC',
-				'title'      => 'ASC',
-			),
-		)
-	);
-	$out   = '<ul class="c4u-location-list">';
-	foreach ( $posts as $post ) {
-		$location = c4u_get_location( $post );
+	$favourite = is_user_logged_in() ? c4u_get_favourite_location( get_current_user_id() ) : null;
+	$items     = array();
+	foreach ( c4u_get_locations() as $order => $location ) {
+		$is_favourite = $favourite && $favourite['id'] === $location['id'];
+		$item         = '<li data-location-id="' . esc_attr( $location['id'] ) . '" data-order="' . esc_attr( $order ) . '">';
 		if ( $location['is_open'] ) {
-			$out .= '<li><a class="c4u-location-button" href="' . esc_url( $location['url'] ) . '">' . esc_html( $location['name'] ) . '</a></li>';
+			$item .= '<a class="c4u-location-button" href="' . esc_url( $location['url'] ) . '">' . esc_html( $location['name'] ) . '</a>'
+				. '<span class="c4u-fav-tag" data-c4u-fav-tag' . ( $is_favourite ? '' : ' hidden' ) . '>&#9733; ' . esc_html__( 'My Favourite', 'coffee4u' ) . '</span>';
 		} else {
-			$out .= '<li><span class="c4u-location-button is-disabled" aria-disabled="true">' . esc_html( $location['name'] ) . '</span><span class="c4u-location-soon">' . esc_html__( 'Opening Shortly', 'coffee4u' ) . '</span></li>';
+			$item .= '<span class="c4u-location-button is-disabled" aria-disabled="true">' . esc_html( $location['name'] ) . '</span><span class="c4u-location-soon">' . esc_html__( 'Opening Shortly', 'coffee4u' ) . '</span>';
+		}
+		$item .= '</li>';
+		if ( $is_favourite ) {
+			array_unshift( $items, $item );
+		} else {
+			$items[] = $item;
 		}
 	}
-	return $out . '</ul>';
+	return '<ul class="c4u-location-list" data-c4u-location-list>' . implode( '', $items ) . '</ul>';
+}
+
+function c4u_render_favourite_toggle( $location ) {
+	if ( ! is_user_logged_in() ) {
+		return '<button type="button" class="c4u-fav-toggle" data-c4u-auth="signin" aria-pressed="false">&#9734; ' . esc_html__( 'Set as Favourite', 'coffee4u' ) . '</button>';
+	}
+	$favourite = c4u_get_favourite_location( get_current_user_id() );
+	$pressed   = $favourite && $favourite['id'] === $location['id'];
+	return '<button type="button" class="c4u-fav-toggle" data-c4u-fav-toggle="' . esc_attr( $location['id'] ) . '" aria-pressed="' . ( $pressed ? 'true' : 'false' ) . '">'
+		. ( $pressed ? '&#9733; ' . esc_html__( 'My Favourite', 'coffee4u' ) : '&#9734; ' . esc_html__( 'Set as Favourite', 'coffee4u' ) ) . '</button>';
 }
 
 function c4u_render_location_details() {
@@ -185,6 +201,7 @@ function c4u_render_location_details() {
 		. '<p class="c4u-welcome">' . esc_html__( 'WELCOME TO COFFEE4U', 'coffee4u' ) . '</p>'
 		. '<h1 class="c4u-location__name">' . esc_html( $location['name'] ) . '</h1>'
 		. '<p class="c4u-location__address">' . esc_html( $location['address'] ) . '</p>'
+		. ( $location['is_open'] ? c4u_render_favourite_toggle( $location ) : '' )
 		. c4u_stars( $location['rating'] )
 		. '<p class="c4u-location__hours">' . esc_html( $location['hours'] ) . '</p>';
 	if ( $location['is_open'] ) {
@@ -730,6 +747,36 @@ add_action(
 				<p class="c4u-center"><button type="button" class="c4u-link" data-c4u-cards-back><?php esc_html_e( 'Back to saved cards', 'coffee4u' ); ?></button></p>
 				<p class="c4u-test-hint"><?php esc_html_e( 'Only the card brand, last four digits, expiry and name are kept. The full number and CVV are never stored, and the CVV is asked again at payment.', 'coffee4u' ); ?></p>
 			</form>
+		</dialog>
+		<?php
+	}
+);
+
+// Favourite Location: pick one open cafe location, or clear it.
+add_action(
+	'wp_footer',
+	function () {
+		if ( ! is_user_logged_in() ) {
+			return;
+		}
+		$view = c4u_favourite_view( get_current_user_id() );
+		?>
+		<dialog class="c4u-modal c4u-fav-modal" data-c4u-fav-modal aria-labelledby="c4u-fav-title">
+			<button type="button" class="c4u-modal__close" data-c4u-close aria-label="<?php esc_attr_e( 'Close', 'coffee4u' ); ?>">&times;</button>
+			<h2 class="c4u-profile__title" id="c4u-fav-title"><?php esc_html_e( 'Favourite Location', 'coffee4u' ); ?></h2>
+			<p class="c4u-center"><?php esc_html_e( 'Choose your favourite cafe. It is shown first on the home page.', 'coffee4u' ); ?></p>
+			<ul class="c4u-location-list c4u-fav-list">
+				<?php foreach ( $view['locations'] as $location ) : ?>
+					<li>
+						<button type="button" class="c4u-location-button" data-c4u-fav-set="<?php echo esc_attr( $location['id'] ); ?>" aria-pressed="<?php echo $location['favourite'] ? 'true' : 'false'; ?>"<?php disabled( ! $location['is_open'] ); ?>><?php echo esc_html( $location['name'] ); ?></button>
+						<?php if ( ! $location['is_open'] ) : ?>
+							<span class="c4u-location-soon"><?php esc_html_e( 'Opening Shortly', 'coffee4u' ); ?></span>
+						<?php endif; ?>
+					</li>
+				<?php endforeach; ?>
+			</ul>
+			<p class="c4u-form-error" data-c4u-error role="alert"></p>
+			<p class="c4u-center"><button type="button" class="c4u-link" data-c4u-fav-clear<?php echo $view['location'] ? '' : ' hidden'; ?>><?php esc_html_e( 'Clear favourite', 'coffee4u' ); ?></button></p>
 		</dialog>
 		<?php
 	}

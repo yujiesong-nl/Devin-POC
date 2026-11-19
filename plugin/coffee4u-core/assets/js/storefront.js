@@ -547,6 +547,90 @@
 		} );
 	}
 
+	/* Favourite location ------------------------------------------------ */
+	const favModal = $( '[data-c4u-fav-modal]' );
+	if ( favModal ) {
+		const favError = $( '[data-c4u-error]', favModal );
+		const STAR = '\u2605 ';
+
+		// Reflects the saved favourite in the menu, the dialog, the location page and the home page list.
+		const applyFavourite = ( data ) => {
+			const fav = data.location;
+			const name = fav ? fav.name : 'Not set';
+			$$( '[data-c4u-fav-name]' ).forEach( ( node ) => ( node.textContent = name ) );
+			$$( '[data-c4u-fav-link]' ).forEach( ( link ) => {
+				link.textContent = name;
+				if ( fav ) {
+					link.href = fav.menu_url;
+				} else {
+					link.removeAttribute( 'href' );
+				}
+			} );
+			$$( '[data-c4u-fav-set]', favModal ).forEach( ( button ) =>
+				button.setAttribute( 'aria-pressed', String( Boolean( fav ) && Number( button.dataset.c4uFavSet ) === fav.id ) )
+			);
+			$( '[data-c4u-fav-clear]', favModal ).hidden = ! fav;
+			$$( '[data-c4u-fav-toggle]' ).forEach( ( toggle ) => {
+				const pressed = Boolean( fav ) && Number( toggle.dataset.c4uFavToggle ) === fav.id;
+				toggle.setAttribute( 'aria-pressed', String( pressed ) );
+				toggle.textContent = pressed ? STAR + 'My Favourite' : '\u2606 Set as Favourite';
+			} );
+			$$( '[data-c4u-location-list]' ).forEach( ( list ) => {
+				const items = $$( 'li', list );
+				items.forEach( ( item ) => {
+					const tag = $( '[data-c4u-fav-tag]', item );
+					if ( tag ) {
+						tag.hidden = ! fav || Number( item.dataset.locationId ) !== fav.id;
+					}
+				} );
+				const rank = ( item ) => ( fav && Number( item.dataset.locationId ) === fav.id ? -1 : Number( item.dataset.order ) );
+				items.sort( ( a, b ) => rank( a ) - rank( b ) ).forEach( ( item ) => list.append( item ) );
+			} );
+		};
+
+		const saveFavourite = async ( locationId, button ) => {
+			favError.textContent = '';
+			setBusy( button, true );
+			try {
+				const data = locationId
+					? await api( 'account/favourite-location', { method: 'POST', body: { location_id: locationId } } )
+					: await api( 'account/favourite-location', { method: 'DELETE' } );
+				applyFavourite( data );
+				toast( data.location ? data.location.name + ' is now your favourite location.' : 'Your favourite location has been cleared.' );
+				return true;
+			} catch ( error ) {
+				favError.textContent = error.message;
+				return false;
+			} finally {
+				setBusy( button, false );
+			}
+		};
+
+		document.addEventListener( 'click', async ( event ) => {
+			if ( event.target.closest( '[data-c4u-favourite]' ) ) {
+				favError.textContent = '';
+				openDialog( favModal );
+				return;
+			}
+			const toggle = event.target.closest( '[data-c4u-fav-toggle]' );
+			if ( toggle ) {
+				const pressed = toggle.getAttribute( 'aria-pressed' ) === 'true';
+				if ( ! ( await saveFavourite( pressed ? 0 : Number( toggle.dataset.c4uFavToggle ), toggle ) ) ) {
+					toast( favError.textContent );
+				}
+			}
+		} );
+
+		favModal.addEventListener( 'click', ( event ) => {
+			const pick = event.target.closest( '[data-c4u-fav-set]' );
+			if ( pick && pick.getAttribute( 'aria-pressed' ) !== 'true' ) {
+				saveFavourite( Number( pick.dataset.c4uFavSet ), pick );
+			} else if ( event.target.closest( '[data-c4u-fav-clear]' ) ) {
+				saveFavourite( 0, event.target.closest( '[data-c4u-fav-clear]' ) );
+			}
+		} );
+	}
+
 	/* Payment ---------------------------------------------------------- */
 	const payForm = $( '[data-c4u-pay]' );
 	if ( payForm ) {
